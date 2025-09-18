@@ -1,0 +1,103 @@
+site_name: Frank CLI
+site_description: Simple multi-environment management of Kubernetes resources
+site_url: https://docs.frankthetank.cloud
+repo_url: https://github.com/schnauzersoft/frank-cli
+repo_name: schnauzersoft/frank-cli
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+markdown_extensions:
+  - codehilite:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - fenced_code
+  - tables
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+  - minify:
+      minify_html: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/schnauzersoft/frank-cli
+  version:
+    provider: mike
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quick-start.md
+    - Installation: getting-started/installation.md
+    - Configuration: getting-started/configuration.md
+  - Features:
+    - Smart Deployments: features/smart-deployments.md
+    - Jinja Templating: features/jinja-templating.md
+    - Stack Filtering: features/stack-filtering.md
+    - Namespace Management: features/namespace-management.md
+    - Resource Management: features/resource-management.md
+  - Commands:
+    - Apply: commands/apply.md
+    - Delete: commands/delete.md
+    - Configuration: commands/configuration.md
+  - Advanced:
+    - Multi-Environment: advanced/multi-environment.md
+    - CI/CD Integration: advanced/ci-cd.md
+    - Debugging: advanced/debugging.md
+    - Best Practices: advanced/best-practices.md
+  - Reference:
+    - Configuration Schema: reference/configuration-schema.md
+    - Template Variables: reference/template-variables.md
+    - Kubernetes Labels: reference/kubernetes-labels.md
+    - Troubleshooting: reference/troubleshooting.md
+  - Development:
+    - Contributing: development/contributing.md
+    - Building: development/building.md
+    - Testing: development/testing.md
+    - Architecture: development/architecture.md
