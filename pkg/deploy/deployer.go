@@ -6,7 +6,6 @@ package deploy
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -386,7 +385,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 
 // readManifestConfig reads a manifest config file
 func (d *Deployer) readManifestConfig(configPath string) (*ManifestConfig, error) {
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -469,7 +468,7 @@ func (d *Deployer) findManifestFile(manifestName string) (string, error) {
 
 // findManifestInSubdirectories recursively searches for a manifest file in subdirectories
 func (d *Deployer) findManifestInSubdirectories(dir, manifestName string) (string, error) {
-	entries, err := ioutil.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
 	}
@@ -506,7 +505,7 @@ func (d *Deployer) findManifestInSubdirectories(dir, manifestName string) (strin
 // validateNamespaceConfiguration checks for namespace conflicts between config and manifest
 func (d *Deployer) validateNamespaceConfiguration(manifestPath, configNamespace string) error {
 	// Read the manifest file to check for namespace
-	manifestData, err := ioutil.ReadFile(manifestPath)
+	manifestData, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return fmt.Errorf("failed to read manifest file: %v", err)
 	}

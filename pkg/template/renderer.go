@@ -6,8 +6,8 @@ package template
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -30,7 +30,7 @@ func NewRenderer(logger *slog.Logger) *Renderer {
 // RenderManifest renders a Jinja template file to Kubernetes manifests
 func (r *Renderer) RenderManifest(templatePath string, context map[string]interface{}) ([]byte, error) {
 	// Read the template file
-	templateContent, err := ioutil.ReadFile(templatePath)
+	templateContent, err := os.ReadFile(templatePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read template file: %v", err)
 	}

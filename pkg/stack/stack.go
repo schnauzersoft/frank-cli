@@ -6,7 +6,7 @@ package stack
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -157,7 +157,7 @@ func GetStackInfo(configFilePath string) (*StackInfo, error) {
 
 // readConfigFile reads a single config file
 func readConfigFile(configPath string) (*Config, error) {
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}

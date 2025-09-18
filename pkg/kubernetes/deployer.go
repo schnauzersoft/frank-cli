@@ -8,8 +8,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log/slog"
+	"os"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,7 +45,7 @@ func NewDeployer(config *rest.Config, logger *slog.Logger) (*Deployer, error) {
 // DeployManifest applies a single manifest file to Kubernetes
 func (d *Deployer) DeployManifest(manifestPath string, stackName string, configNamespace string, timeout time.Duration) (*DeployResult, error) {
 	// Read the manifest file
-	manifestData, err := ioutil.ReadFile(manifestPath)
+	manifestData, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading manifest file: %v", err)
 	}
