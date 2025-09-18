@@ -43,7 +43,7 @@ func NewDeployer(config *rest.Config, logger *slog.Logger) (*Deployer, error) {
 }
 
 // DeployManifest applies a single manifest file to Kubernetes
-func (d *Deployer) DeployManifest(manifestPath string, stackName string, timeout time.Duration) (*DeployResult, error) {
+func (d *Deployer) DeployManifest(manifestPath string, stackName string, configNamespace string, timeout time.Duration) (*DeployResult, error) {
 	// Read the manifest file
 	manifestData, err := ioutil.ReadFile(manifestPath)
 	if err != nil {
@@ -62,8 +62,13 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, timeout
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
+	// Use config namespace if manifest doesn't have one, otherwise use manifest namespace
 	if namespace == "" {
-		namespace = "default"
+		if configNamespace != "" {
+			namespace = configNamespace
+		} else {
+			namespace = "default"
+		}
 	}
 
 	// Add stack name annotation

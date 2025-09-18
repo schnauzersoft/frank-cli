@@ -14,9 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Config represents the base configuration structure (context only)
+// Config represents the base configuration structure
 type Config struct {
-	Context string `yaml:"context"`
+	Context   string `yaml:"context"`
+	Namespace string `yaml:"namespace"`
 }
 
 // applyCmd represents the apply command

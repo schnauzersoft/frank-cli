@@ -23,7 +23,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-
 // ManifestConfig represents manifest-specific configuration
 type ManifestConfig struct {
 	Manifest string        `yaml:"manifest"`
@@ -150,20 +149,20 @@ func (d *Deployer) findAllConfigFiles() ([]string, error) {
 // filterConfigFilesByStack filters config files based on stack pattern
 func (d *Deployer) filterConfigFilesByStack(configFiles []string, stackFilter string) []string {
 	var filteredFiles []string
-	
+
 	for _, configFile := range configFiles {
 		// Convert file path to stack pattern for matching
 		// Remove config directory prefix and .yaml/.yml extension
 		relativePath := strings.TrimPrefix(configFile, d.configDir+"/")
 		stackPattern := strings.TrimSuffix(relativePath, ".yaml")
 		stackPattern = strings.TrimSuffix(stackPattern, ".yml")
-		
+
 		// Check if the stack pattern matches the filter
 		if d.matchesStackFilter(stackPattern, stackFilter) {
 			filteredFiles = append(filteredFiles, configFile)
 		}
 	}
-	
+
 	return filteredFiles
 }
 
@@ -173,27 +172,27 @@ func (d *Deployer) matchesStackFilter(stackPattern, filter string) bool {
 	if stackPattern == filter {
 		return true
 	}
-	
+
 	// Check if stack pattern starts with filter (for directory matching)
 	if strings.HasPrefix(stackPattern, filter+"/") {
 		return true
 	}
-	
+
 	// Check if stack pattern starts with filter (for partial matching)
 	if strings.HasPrefix(stackPattern, filter) {
 		return true
 	}
-	
+
 	// Check if filter is a file pattern that matches
 	// e.g., "dev/app" should match "dev/app.yaml" -> "dev/app"
 	if strings.HasPrefix(stackPattern, filter) && len(stackPattern) > len(filter) {
 		// Check if the next character is a separator or end of string
-		nextChar := stackPattern[len(filter):len(filter)+1]
+		nextChar := stackPattern[len(filter) : len(filter)+1]
 		if nextChar == "/" || nextChar == "-" || nextChar == "_" {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -231,7 +230,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		}
 	}
 
-	d.logger.Debug("Generated stack info", "stack_name", stackInfo.Name, "context", stackInfo.Context, "project_code", stackInfo.ProjectCode)
+	d.logger.Debug("Generated stack info", "stack_name", stackInfo.Name, "context", stackInfo.Context, "project_code", stackInfo.ProjectCode, "namespace", stackInfo.Namespace)
 
 	d.logger.Debug("Using Kubernetes client", "context", stackInfo.Context)
 
@@ -255,8 +254,22 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		timeout = 10 * time.Minute // Default 10 minutes
 	}
 
+	// Validate namespace configuration
+	d.logger.Debug("Validating namespace", "config_namespace", stackInfo.Namespace, "manifest", manifestConfig.Manifest)
+	if err := d.validateNamespaceConfiguration(manifestPath, stackInfo.Namespace); err != nil {
+		d.logger.Error("Namespace validation failed", "manifest", manifestConfig.Manifest, "error", err)
+		return DeploymentResult{
+			Context:   stackInfo.Context,
+			StackName: stackInfo.Name,
+			Manifest:  manifestConfig.Manifest,
+			Response:  "",
+			Error:     fmt.Errorf("namespace validation failed: %v", err),
+			Timestamp: timestamp,
+		}
+	}
+
 	// Apply the manifest using the real Kubernetes deployer
-	result, err := d.k8sDeployer.DeployManifest(manifestPath, stackInfo.Name, timeout)
+	result, err := d.k8sDeployer.DeployManifest(manifestPath, stackInfo.Name, stackInfo.Namespace, timeout)
 	if err != nil {
 		d.logger.Debug("Failed to apply manifest", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
@@ -294,7 +307,6 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		Timestamp: timestamp,
 	}
 }
-
 
 // readManifestConfig reads a manifest config file
 func (d *Deployer) readManifestConfig(configPath string) (*ManifestConfig, error) {
@@ -395,4 +407,34 @@ func (d *Deployer) findManifestInSubdirectories(dir, manifestName string) (strin
 	}
 
 	return "", fmt.Errorf("manifest file not found: %s (searched in manifests directory and subdirectories)", manifestName)
+}
+
+// validateNamespaceConfiguration checks for namespace conflicts between config and manifest
+func (d *Deployer) validateNamespaceConfiguration(manifestPath, configNamespace string) error {
+	// Read the manifest file to check for namespace
+	manifestData, err := ioutil.ReadFile(manifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to read manifest file: %v", err)
+	}
+
+	// Parse the YAML to check for namespace field
+	var manifest map[string]interface{}
+	if err := yaml.Unmarshal(manifestData, &manifest); err != nil {
+		return fmt.Errorf("failed to parse manifest YAML: %v", err)
+	}
+
+	// Check if manifest has a namespace field
+	metadata, hasMetadata := manifest["metadata"].(map[string]interface{})
+	if hasMetadata {
+		manifestNamespace, hasManifestNamespace := metadata["namespace"].(string)
+		d.logger.Debug("Namespace validation", "config_namespace", configNamespace, "manifest_namespace", manifestNamespace, "has_manifest_namespace", hasManifestNamespace)
+		if hasManifestNamespace && manifestNamespace != "" {
+			// Both config and manifest have namespace - this is an error
+			if configNamespace != "" {
+				return fmt.Errorf("namespace specified in both config file (%s) and manifest file (%s) - specify namespace in only one place", configNamespace, manifestNamespace)
+			}
+		}
+	}
+
+	return nil
 }

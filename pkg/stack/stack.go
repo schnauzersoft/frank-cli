@@ -17,6 +17,7 @@ import (
 type Config struct {
 	Context     string `yaml:"context"`
 	ProjectCode string `yaml:"project_code"`
+	Namespace   string `yaml:"namespace"`
 }
 
 // StackInfo represents information about a stack
@@ -24,6 +25,7 @@ type StackInfo struct {
 	Name        string
 	Context     string
 	ProjectCode string
+	Namespace   string
 	ConfigPath  string
 }
 
@@ -111,6 +113,7 @@ func GetStackInfo(configFilePath string) (*StackInfo, error) {
 			Name:        GenerateFallbackStackName(configFilePath),
 			Context:     "unknown",
 			ProjectCode: "unknown",
+			Namespace:   "",
 			ConfigPath:  configFilePath,
 		}, nil
 	}
@@ -121,6 +124,7 @@ func GetStackInfo(configFilePath string) (*StackInfo, error) {
 		Name:        stackName,
 		Context:     config.Context,
 		ProjectCode: config.ProjectCode,
+		Namespace:   config.Namespace,
 		ConfigPath:  configFilePath,
 	}, nil
 }
