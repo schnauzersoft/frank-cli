@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"frank/pkg/kubernetes"
-	"frank/pkg/stack"
-	"frank/pkg/template"
+	"github.com/schnauzersoft/frank-cli/pkg/kubernetes"
+	"github.com/schnauzersoft/frank-cli/pkg/stack"
+	"github.com/schnauzersoft/frank-cli/pkg/template"
 
 	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/rest"

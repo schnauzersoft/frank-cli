@@ -7,7 +7,7 @@ package cmd
 import (
 	"fmt"
 
-	"frank/pkg/kubernetes"
+	"github.com/schnauzersoft/frank-cli/pkg/kubernetes"
 
 	"github.com/spf13/cobra"
 )
@@ -21,7 +21,7 @@ var deleteCmd = &cobra.Command{
 Frank finds and removes resources it previously deployed, using stack
 annotations to identify what belongs to frank vs other tools.
 
-What frank deletes:
+What delete does:
   • Only resources with frankthetank.cloud/stack-name annotations
   • Matches by stack name patterns for selective cleanup
   • Searches across all namespaces to find everything

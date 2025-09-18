@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"os"
 
-	"frank/pkg/config"
+	"github.com/schnauzersoft/frank-cli/pkg/config"
 
 	"github.com/lmittmann/tint"
 	"github.com/spf13/cobra"

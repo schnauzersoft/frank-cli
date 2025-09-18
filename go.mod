@@ -1,4 +1,4 @@
-module frank
+module github.com/schnauzersoft/frank-cli
 
 go 1.25.0
 

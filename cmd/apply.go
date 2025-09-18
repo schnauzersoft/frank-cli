@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"frank/pkg/deploy"
+	"github.com/schnauzersoft/frank-cli/pkg/deploy"
 
 	"github.com/spf13/cobra"
 )
@@ -29,7 +29,7 @@ var applyCmd = &cobra.Command{
 Frank reads your config files and deploys manifests to your clusters,
 handling the heavy lifting of resource management and status monitoring.
 
-What frank does:
+What apply does:
   • Creates new resources or updates existing ones intelligently
   • Adds stack tracking annotations to keep things organized
   • Waits patiently for deployments to be ready (no more guessing!)
