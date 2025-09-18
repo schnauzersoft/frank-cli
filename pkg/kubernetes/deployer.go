@@ -124,7 +124,6 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, timeout
 			result, err = d.dynamicClient.Resource(gvr).Namespace(namespace).Update(context.TODO(), &obj, metav1.UpdateOptions{})
 			operation = "applied"
 		} else {
-			d.logger.Info("Resource is already up to date", "stack", stackName, "name", name, "namespace", namespace)
 			result = existing
 			operation = "no-change"
 		}
@@ -140,10 +139,17 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, timeout
 		}, nil
 	}
 
-	// Poll for completion if it's a deployment or similar workload
-	status, err := d.pollForCompletion(gvr, namespace, name, stackName, result, timeout)
-	if err != nil {
-		d.logger.Warn("Error polling for completion", "stack", stackName, "error", err)
+	// Poll for completion only if we made changes
+	var status string
+	if operation == "created" || operation == "applied" {
+		status, err = d.pollForCompletion(gvr, namespace, name, stackName, result, timeout)
+		if err != nil {
+			d.logger.Warn("Error polling for completion", "stack", stackName, "error", err)
+		}
+	} else {
+		// No changes made, resource is already up to date
+		status = "ready"
+		d.logger.Info("Resource is already up to date", "stack", stackName, "name", name, "namespace", namespace)
 	}
 
 	return &DeployResult{
@@ -514,17 +520,17 @@ func (d *Deployer) pollForCompletion(gvr schema.GroupVersionResource, namespace,
 			}
 
 			status := d.getResourceStatus(resource, kind)
-			
+
 			if status == "Available" || status == "Ready" || status == "Complete" {
 				d.logger.Info("Resource is ready", "stack", stackName, "kind", kind, "name", name, "status", status)
 				return status, nil
 			}
-			
+
 			if status == "Failed" || status == "ReplicaFailure" {
 				d.logger.Error("Resource failed", "stack", stackName, "kind", kind, "name", name, "status", status)
 				return status, fmt.Errorf("resource %s/%s failed with status: %s", kind, name, status)
 			}
-			
+
 			// Only log if status is still progressing
 			d.logger.Warn("Waiting for resource to be ready", "stack", stackName, "kind", kind, "name", name, "status", status)
 		}
