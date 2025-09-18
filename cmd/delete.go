@@ -5,6 +5,8 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package cmd
 
 import (
+	"fmt"
+
 	"frank/pkg/kubernetes"
 
 	"github.com/spf13/cobra"
@@ -32,14 +34,25 @@ Target specific stacks:
   frank delete frank-dev-app      # Remove specific stack`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		// Get the global logger from root command
-		logger := GetLogger()
+		// Get the --yes flag
+		yes, _ := cmd.Flags().GetBool("yes")
 
 		// Get stack filter from arguments
 		var stackFilter string
 		if len(args) > 0 {
 			stackFilter = args[0]
 		}
+
+		// Show confirmation prompt unless --yes flag is used
+		if !yes {
+			if !confirmAction("delete", stackFilter) {
+				fmt.Println("Canceled")
+				return
+			}
+		}
+
+		// Get the global logger from root command
+		logger := GetLogger()
 
 		logger.Info("Starting delete process", "filter", stackFilter)
 
@@ -80,5 +93,6 @@ Target specific stacks:
 }
 
 func init() {
+	deleteCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
 	rootCmd.AddCommand(deleteCmd)
 }

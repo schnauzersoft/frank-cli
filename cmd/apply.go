@@ -42,6 +42,22 @@ Target specific stacks:
   frank apply dev/app.yaml       # Deploy specific configuration file`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		// Get the --yes flag
+		yes, _ := cmd.Flags().GetBool("yes")
+
+		// Get stack filter from arguments
+		var stackFilter string
+		if len(args) > 0 {
+			stackFilter = args[0]
+		}
+
+		// Show confirmation prompt unless --yes flag is used
+		if !yes {
+			if !confirmAction("apply", stackFilter) {
+				fmt.Println("Canceled")
+				return
+			}
+		}
 		// Get the global logger (configuration is already loaded in root command)
 		logger := GetLogger()
 
@@ -53,12 +69,6 @@ Target specific stacks:
 		}
 
 		logger.Debug("Found config directory", "path", configDir)
-
-		// Get stack filter from arguments
-		var stackFilter string
-		if len(args) > 0 {
-			stackFilter = args[0]
-		}
 
 		// Create deployer and run parallel applies
 		deployer, err := deploy.NewDeployer(configDir, logger)
@@ -95,6 +105,7 @@ Target specific stacks:
 }
 
 func init() {
+	applyCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
 	rootCmd.AddCommand(applyCmd)
 }
 
