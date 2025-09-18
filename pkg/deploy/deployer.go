@@ -42,9 +42,9 @@ type DeploymentResult struct {
 
 // Deployer handles parallel application operations
 type Deployer struct {
-	configDir      string
-	logger         *slog.Logger
-	k8sDeployer    *kubernetes.Deployer
+	configDir        string
+	logger           *slog.Logger
+	k8sDeployer      *kubernetes.Deployer
 	templateRenderer *template.Renderer
 }
 
@@ -172,6 +172,11 @@ func (d *Deployer) filterConfigFilesByStack(configFiles []string, stackFilter st
 
 // matchesStackFilter checks if a stack pattern matches the given filter
 func (d *Deployer) matchesStackFilter(stackPattern, filter string) bool {
+	// Empty filter should not match anything
+	if filter == "" {
+		return false
+	}
+
 	// Exact match
 	if stackPattern == filter {
 		return true
@@ -184,6 +189,13 @@ func (d *Deployer) matchesStackFilter(stackPattern, filter string) bool {
 
 	// Check if stack pattern starts with filter (for partial matching)
 	if strings.HasPrefix(stackPattern, filter) {
+		return true
+	}
+
+	// Check if filter is a path pattern that matches with dashes
+	// e.g., "dev/app" should match "frank-dev-app" (where frank is project_code)
+	filterWithDashes := strings.ReplaceAll(filter, "/", "-")
+	if strings.HasPrefix(stackPattern, filterWithDashes) {
 		return true
 	}
 
@@ -234,7 +246,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		}
 	}
 
-		d.logger.Debug("Generated stack info", "stack_name", stackInfo.Name, "context", stackInfo.Context, "project_code", stackInfo.ProjectCode, "namespace", stackInfo.Namespace, "app", stackInfo.App, "version", stackInfo.Version)
+	d.logger.Debug("Generated stack info", "stack_name", stackInfo.Name, "context", stackInfo.Context, "project_code", stackInfo.ProjectCode, "namespace", stackInfo.Namespace, "app", stackInfo.App, "version", stackInfo.Version)
 
 	d.logger.Debug("Using Kubernetes client", "context", stackInfo.Context)
 
@@ -256,7 +268,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	finalManifestPath := manifestPath
 	if d.templateRenderer.IsTemplateFile(manifestPath) {
 		d.logger.Debug("Rendering template", "template", manifestPath)
-		
+
 		// Build template context
 		templateContext := d.templateRenderer.BuildTemplateContext(
 			stackInfo.Name,
@@ -436,23 +448,23 @@ func (d *Deployer) findManifestFile(manifestName string) (string, error) {
 	projectRoot := filepath.Dir(d.configDir)
 	manifestsDir := filepath.Join(projectRoot, "manifests")
 
-		// First check if the manifest exists directly in the manifests directory
-		manifestPath := filepath.Join(manifestsDir, manifestName)
-		if _, err := os.Stat(manifestPath); err == nil {
-			return manifestPath, nil
-		}
+	// First check if the manifest exists directly in the manifests directory
+	manifestPath := filepath.Join(manifestsDir, manifestName)
+	if _, err := os.Stat(manifestPath); err == nil {
+		return manifestPath, nil
+	}
 
-		// Check for Jinja template versions
-		jinjaExtensions := []string{".jinja", ".j2"}
-		for _, ext := range jinjaExtensions {
-			jinjaPath := strings.TrimSuffix(manifestPath, filepath.Ext(manifestPath)) + ext
-			if _, err := os.Stat(jinjaPath); err == nil {
-				return jinjaPath, nil
-			}
+	// Check for Jinja template versions
+	jinjaExtensions := []string{".jinja", ".j2"}
+	for _, ext := range jinjaExtensions {
+		jinjaPath := strings.TrimSuffix(manifestPath, filepath.Ext(manifestPath)) + ext
+		if _, err := os.Stat(jinjaPath); err == nil {
+			return jinjaPath, nil
 		}
+	}
 
-		// If not found, search in subdirectories
-		return d.findManifestInSubdirectories(manifestsDir, manifestName)
+	// If not found, search in subdirectories
+	return d.findManifestInSubdirectories(manifestsDir, manifestName)
 }
 
 // findManifestInSubdirectories recursively searches for a manifest file in subdirectories

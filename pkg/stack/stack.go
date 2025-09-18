@@ -176,6 +176,9 @@ func mergeConfigs(parent, child *Config) *Config {
 	result := &Config{
 		Context:     parent.Context,
 		ProjectCode: parent.ProjectCode,
+		Namespace:   parent.Namespace,
+		App:         parent.App,
+		Version:     parent.Version,
 	}
 
 	// Child overrides parent if set
@@ -184,6 +187,15 @@ func mergeConfigs(parent, child *Config) *Config {
 	}
 	if child.ProjectCode != "" {
 		result.ProjectCode = child.ProjectCode
+	}
+	if child.Namespace != "" {
+		result.Namespace = child.Namespace
+	}
+	if child.App != "" {
+		result.App = child.App
+	}
+	if child.Version != "" {
+		result.Version = child.Version
 	}
 
 	return result
