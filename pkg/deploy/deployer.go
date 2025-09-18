@@ -69,7 +69,7 @@ func NewDeployer(configDir string, logger *slog.Logger) (*Deployer, error) {
 }
 
 // DeployAll performs parallel application of all manifest configs
-func (d *Deployer) DeployAll() ([]DeploymentResult, error) {
+func (d *Deployer) DeployAll(stackFilter string) ([]DeploymentResult, error) {
 	// Find all YAML config files
 	configFiles, err := d.findAllConfigFiles()
 	if err != nil {
@@ -80,7 +80,15 @@ func (d *Deployer) DeployAll() ([]DeploymentResult, error) {
 		return nil, fmt.Errorf("no config files found")
 	}
 
-	d.logger.Debug("Found config files", "count", len(configFiles), "files", configFiles)
+	// Filter config files by stack if filter is provided
+	if stackFilter != "" {
+		configFiles = d.filterConfigFilesByStack(configFiles, stackFilter)
+		if len(configFiles) == 0 {
+			return nil, fmt.Errorf("no config files found matching stack filter: %s", stackFilter)
+		}
+	}
+
+	d.logger.Debug("Found config files", "count", len(configFiles), "files", configFiles, "filter", stackFilter)
 
 	// Create channels for results and errors
 	results := make(chan DeploymentResult, len(configFiles))
@@ -139,6 +147,55 @@ func (d *Deployer) findAllConfigFiles() ([]string, error) {
 	return configFiles, err
 }
 
+// filterConfigFilesByStack filters config files based on stack pattern
+func (d *Deployer) filterConfigFilesByStack(configFiles []string, stackFilter string) []string {
+	var filteredFiles []string
+	
+	for _, configFile := range configFiles {
+		// Convert file path to stack pattern for matching
+		// Remove config directory prefix and .yaml/.yml extension
+		relativePath := strings.TrimPrefix(configFile, d.configDir+"/")
+		stackPattern := strings.TrimSuffix(relativePath, ".yaml")
+		stackPattern = strings.TrimSuffix(stackPattern, ".yml")
+		
+		// Check if the stack pattern matches the filter
+		if d.matchesStackFilter(stackPattern, stackFilter) {
+			filteredFiles = append(filteredFiles, configFile)
+		}
+	}
+	
+	return filteredFiles
+}
+
+// matchesStackFilter checks if a stack pattern matches the given filter
+func (d *Deployer) matchesStackFilter(stackPattern, filter string) bool {
+	// Exact match
+	if stackPattern == filter {
+		return true
+	}
+	
+	// Check if stack pattern starts with filter (for directory matching)
+	if strings.HasPrefix(stackPattern, filter+"/") {
+		return true
+	}
+	
+	// Check if stack pattern starts with filter (for partial matching)
+	if strings.HasPrefix(stackPattern, filter) {
+		return true
+	}
+	
+	// Check if filter is a file pattern that matches
+	// e.g., "dev/app" should match "dev/app.yaml" -> "dev/app"
+	if strings.HasPrefix(stackPattern, filter) && len(stackPattern) > len(filter) {
+		// Check if the next character is a separator or end of string
+		nextChar := stackPattern[len(filter):len(filter)+1]
+		if nextChar == "/" || nextChar == "-" || nextChar == "_" {
+			return true
+		}
+	}
+	
+	return false
+}
 
 // deploySingleConfig deploys a single config file
 func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {

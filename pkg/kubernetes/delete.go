@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -22,7 +23,7 @@ func NewDeployerForDelete(logger *slog.Logger) (*Deployer, error) {
 }
 
 // DeleteAllManagedResources finds and deletes all resources with frankthetank.cloud/stack-name annotation
-func (d *Deployer) DeleteAllManagedResources() ([]DeleteResult, error) {
+func (d *Deployer) DeleteAllManagedResources(stackFilter string) ([]DeleteResult, error) {
 	var results []DeleteResult
 
 	// List of resource types to check for frank-managed resources
@@ -67,6 +68,11 @@ func (d *Deployer) DeleteAllManagedResources() ([]DeleteResult, error) {
 
 			stackName, hasStackAnnotation := annotations["frankthetank.cloud/stack-name"]
 			if !hasStackAnnotation {
+				continue
+			}
+
+			// Apply stack filter if provided
+			if stackFilter != "" && !d.matchesStackFilter(stackName, stackFilter) {
 				continue
 			}
 
@@ -116,4 +122,31 @@ func createKubernetesConfig() (*rest.Config, error) {
 	}
 
 	return config, nil
+}
+
+// matchesStackFilter checks if a stack name matches the given filter
+func (d *Deployer) matchesStackFilter(stackName, filter string) bool {
+	// Exact match
+	if stackName == filter {
+		return true
+	}
+	
+	// Check if stack name starts with filter (for partial matching)
+	if strings.HasPrefix(stackName, filter) {
+		return true
+	}
+	
+	// Check if filter is a directory pattern that matches
+	// e.g., "dev" should match "dev-app", "dev-web", etc.
+	if strings.HasPrefix(stackName, filter+"-") {
+		return true
+	}
+	
+	// Check if filter is a path pattern that matches
+	// e.g., "dev/app" should match "dev-app", "dev-app-1", etc.
+	if strings.HasPrefix(stackName, strings.ReplaceAll(filter, "/", "-")) {
+		return true
+	}
+	
+	return false
 }

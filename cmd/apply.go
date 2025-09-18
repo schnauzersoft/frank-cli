@@ -21,17 +21,26 @@ type Config struct {
 
 // applyCmd represents the apply command
 var applyCmd = &cobra.Command{
-	Use:   "apply",
+	Use:   "apply [stack]",
 	Short: "Apply templated Kubernetes manifest files to clusters",
-	Long: `Apply command reads configuration from the config directory and applies
-the specified manifest to the Kubernetes cluster.
+	Long: `Deploy your Kubernetes applications with style and precision.
 
-The config/config.yaml file should contain:
-context: <Kubernetes context>
+Frank reads your config files and deploys manifests to your clusters,
+handling the heavy lifting of resource management and status monitoring.
 
-Any .yaml or .yml files in the config directory (except config.yaml) will be read
-as manifest config files and should contain:
-manifest: example-deployment.yaml`,
+What frank does:
+  • Creates new resources or updates existing ones intelligently
+  • Adds stack tracking annotations to keep things organized
+  • Waits patiently for deployments to be ready (no more guessing!)
+  • Runs multiple deployments in parallel for speed
+  • Gives you clear, colored logs so you know what's happening
+
+Target specific stacks:
+  frank apply                    # Deploy everything
+  frank apply dev                # Deploy all dev environment stacks
+  frank apply dev/app            # Deploy all dev/app* configurations
+  frank apply dev/app.yaml       # Deploy specific configuration file`,
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get the global logger (configuration is already loaded in root command)
 		logger := GetLogger()
@@ -45,6 +54,12 @@ manifest: example-deployment.yaml`,
 
 		logger.Debug("Found config directory", "path", configDir)
 
+		// Get stack filter from arguments
+		var stackFilter string
+		if len(args) > 0 {
+			stackFilter = args[0]
+		}
+
 		// Create deployer and run parallel applies
 		deployer, err := deploy.NewDeployer(configDir, logger)
 		if err != nil {
@@ -52,7 +67,7 @@ manifest: example-deployment.yaml`,
 			os.Exit(1)
 		}
 
-		results, err := deployer.DeployAll()
+		results, err := deployer.DeployAll(stackFilter)
 		if err != nil {
 			logger.Error("Apply failed", "error", err)
 			os.Exit(1)
