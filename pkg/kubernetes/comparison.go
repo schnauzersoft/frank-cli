@@ -16,7 +16,7 @@ func (d *Deployer) needsUpdate(existing, desired *unstructured.Unstructured) boo
 
 	// For deployments, compare key fields that matter
 	kind := desired.GetKind()
-	
+
 	switch kind {
 	case "Deployment":
 		return d.deploymentNeedsUpdate(existingSpec, desiredSpec)
@@ -43,7 +43,7 @@ func (d *Deployer) deploymentNeedsUpdate(existing, desired map[string]interface{
 	// Compare template (which contains the actual pod spec)
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
-	
+
 	if !d.templateEqual(existingTemplate, desiredTemplate) {
 		d.logger.Debug("Deployment needs update: template differs")
 		return true
@@ -63,7 +63,7 @@ func (d *Deployer) statefulSetNeedsUpdate(existing, desired map[string]interface
 	// Compare template
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
-	
+
 	if !d.templateEqual(existingTemplate, desiredTemplate) {
 		return true
 	}
@@ -76,7 +76,7 @@ func (d *Deployer) daemonSetNeedsUpdate(existing, desired map[string]interface{}
 	// Compare template
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
-	
+
 	if !d.templateEqual(existingTemplate, desiredTemplate) {
 		return true
 	}
@@ -89,7 +89,7 @@ func (d *Deployer) jobNeedsUpdate(existing, desired map[string]interface{}) bool
 	// Compare template
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
-	
+
 	if !d.templateEqual(existingTemplate, desiredTemplate) {
 		return true
 	}
@@ -106,7 +106,7 @@ func (d *Deployer) templateEqual(existing, desired map[string]interface{}) bool 
 	// Compare spec within template
 	existingSpec, _, _ := unstructured.NestedMap(existing, "spec")
 	desiredSpec, _, _ := unstructured.NestedMap(desired, "spec")
-	
+
 	if existingSpec == nil || desiredSpec == nil {
 		return (existingSpec == nil) != (desiredSpec == nil)
 	}
@@ -114,7 +114,7 @@ func (d *Deployer) templateEqual(existing, desired map[string]interface{}) bool 
 	// Compare containers
 	existingContainers, _, _ := unstructured.NestedSlice(existingSpec, "containers")
 	desiredContainers, _, _ := unstructured.NestedSlice(desiredSpec, "containers")
-	
+
 	if !d.containersEqual(existingContainers, desiredContainers) {
 		return false
 	}
@@ -160,7 +160,7 @@ func (d *Deployer) containersEqual(existing, desired []interface{}) bool {
 		// Compare ports (handle default protocol)
 		existingPorts, _, _ := unstructured.NestedSlice(existingMap, "ports")
 		desiredPorts, _, _ := unstructured.NestedSlice(desiredMap, "ports")
-		
+
 		if !d.comparePorts(existingPorts, desiredPorts) {
 			return false
 		}
@@ -197,7 +197,7 @@ func (d *Deployer) comparePorts(existing, desired []interface{}) bool {
 		// Handle default protocol - if not specified, assume TCP
 		existingProtocol := existingMap["protocol"]
 		desiredProtocol := desiredMap["protocol"]
-		
+
 		if existingProtocol == nil {
 			existingProtocol = "TCP"
 		}

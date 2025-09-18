@@ -18,11 +18,11 @@ type Deployer struct {
 
 // DeployResult represents the result of a single Kubernetes resource application
 type DeployResult struct {
-	Resource    *unstructured.Unstructured
-	Operation   string // "created", "applied", "unchanged"
-	Status      string // "Progressing", "Available", "Ready", "Complete", "Failed", "ReplicaFailure", "timeout"
-	Error       error
-	Timestamp   time.Time
+	Resource  *unstructured.Unstructured
+	Operation string // "created", "applied", "unchanged"
+	Status    string // "Progressing", "Available", "Ready", "Complete", "Failed", "ReplicaFailure", "timeout"
+	Error     error
+	Timestamp time.Time
 }
 
 // DeleteResult represents the result of a delete operation

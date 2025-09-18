@@ -158,17 +158,17 @@ func (d *Deployer) getGVR(apiVersion, kind string) (schema.GroupVersionResource,
 
 	// Map common kinds to their resource names
 	resourceMap := map[string]string{
-		"Deployment":    "deployments",
-		"StatefulSet":   "statefulsets",
-		"DaemonSet":     "daemonsets",
-		"Service":       "services",
-		"ConfigMap":     "configmaps",
-		"Secret":        "secrets",
-		"Pod":           "pods",
-		"Job":           "jobs",
-		"CronJob":       "cronjobs",
-		"Ingress":       "ingresses",
-		"PersistentVolume": "persistentvolumes",
+		"Deployment":            "deployments",
+		"StatefulSet":           "statefulsets",
+		"DaemonSet":             "daemonsets",
+		"Service":               "services",
+		"ConfigMap":             "configmaps",
+		"Secret":                "secrets",
+		"Pod":                   "pods",
+		"Job":                   "jobs",
+		"CronJob":               "cronjobs",
+		"Ingress":               "ingresses",
+		"PersistentVolume":      "persistentvolumes",
 		"PersistentVolumeClaim": "persistentvolumeclaims",
 	}
 

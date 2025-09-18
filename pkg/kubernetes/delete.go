@@ -87,7 +87,7 @@ func (d *Deployer) DeleteAllManagedResources(stackFilter string) ([]DeleteResult
 				"namespace", namespace)
 
 			err = d.dynamicClient.Resource(gvr).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
-			
+
 			result := DeleteResult{
 				StackName:    stackName,
 				ResourceType: rt.Kind,
@@ -130,23 +130,23 @@ func (d *Deployer) matchesStackFilter(stackName, filter string) bool {
 	if stackName == filter {
 		return true
 	}
-	
+
 	// Check if stack name starts with filter (for partial matching)
 	if strings.HasPrefix(stackName, filter) {
 		return true
 	}
-	
+
 	// Check if filter is a directory pattern that matches
 	// e.g., "dev" should match "dev-app", "dev-web", etc.
 	if strings.HasPrefix(stackName, filter+"-") {
 		return true
 	}
-	
+
 	// Check if filter is a path pattern that matches
 	// e.g., "dev/app" should match "dev-app", "dev-app-1", etc.
 	if strings.HasPrefix(stackName, strings.ReplaceAll(filter, "/", "-")) {
 		return true
 	}
-	
+
 	return false
 }

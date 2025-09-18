@@ -88,12 +88,12 @@ func TestBuildTemplateContext(t *testing.T) {
 				"stack_name", "context", "project_code", "namespace", "app", "version", "k8s_namespace",
 			},
 			expectedValues: map[string]string{
-				"stack_name":   "frank-dev-app",
-				"context":      "dev",
-				"project_code": "frank",
-				"namespace":    "dev-namespace",
-				"app":          "app",
-				"version":      "1.2.3",
+				"stack_name":    "frank-dev-app",
+				"context":       "dev",
+				"project_code":  "frank",
+				"namespace":     "dev-namespace",
+				"app":           "app",
+				"version":       "1.2.3",
 				"k8s_namespace": "dev-namespace",
 			},
 		},
@@ -141,7 +141,7 @@ func TestBuildTemplateContext(t *testing.T) {
 func TestRenderManifest(t *testing.T) {
 	// Create a temporary directory for the template
 	tempDir := t.TempDir()
-	
+
 	// Create a simple Jinja template
 	templateContent := `apiVersion: apps/v1
 kind: Deployment
@@ -227,7 +227,7 @@ spec:
 func TestRenderManifestWithConditionals(t *testing.T) {
 	// Create a temporary directory for the template
 	tempDir := t.TempDir()
-	
+
 	// Create a template with conditionals
 	templateContent := `apiVersion: apps/v1
 kind: Deployment

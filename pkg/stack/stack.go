@@ -38,14 +38,14 @@ func GenerateStackName(projectCode, context, configFilePath string) string {
 	// Get the file name without extension
 	fileName := filepath.Base(configFilePath)
 	fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
-	
+
 	// Generate stack name: project_code-context-filename
 	stackName := fmt.Sprintf("%s-%s-%s", projectCode, context, fileName)
-	
+
 	// Clean up the stack name (remove any invalid characters)
 	stackName = strings.ReplaceAll(stackName, "_", "-")
 	stackName = strings.ToLower(stackName)
-	
+
 	return stackName
 }
 
@@ -54,20 +54,20 @@ func GenerateFallbackStackName(configFilePath string) string {
 	// Get the file name without extension
 	fileName := filepath.Base(configFilePath)
 	fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
-	
+
 	// Get the directory name as context
 	dirName := filepath.Base(filepath.Dir(configFilePath))
 	if dirName == "." {
 		dirName = "unknown"
 	}
-	
+
 	// Generate fallback stack name: unknown-context-filename
 	stackName := fmt.Sprintf("unknown-%s-%s", dirName, fileName)
-	
+
 	// Clean up the stack name
 	stackName = strings.ReplaceAll(stackName, "_", "-")
 	stackName = strings.ToLower(stackName)
-	
+
 	return stackName
 }
 
@@ -75,7 +75,7 @@ func GenerateFallbackStackName(configFilePath string) string {
 func ReadConfigForFile(configFilePath string) (*Config, error) {
 	// Determine the config directory for this file
 	configDir := filepath.Dir(configFilePath)
-	
+
 	// Start with the config in the same directory as the file
 	configPath := filepath.Join(configDir, "config.yaml")
 	config, err := readConfigFile(configPath)
@@ -86,7 +86,7 @@ func ReadConfigForFile(configFilePath string) (*Config, error) {
 	// Check if we're in a subdirectory and need to inherit from parent
 	currentDir := configDir
 	parentDir := filepath.Dir(currentDir)
-	
+
 	// If we're in a subdirectory (like config/dev/), try to read parent config
 	if filepath.Base(currentDir) != "config" && filepath.Base(currentDir) != "." {
 		parentConfigPath := filepath.Join(parentDir, "config.yaml")
@@ -116,7 +116,7 @@ func extractAppNameFromFilename(configFilePath string) string {
 	fileName = strings.TrimSuffix(fileName, ".yml")
 	fileName = strings.TrimSuffix(fileName, ".jinja")
 	fileName = strings.TrimSuffix(fileName, ".j2")
-	
+
 	return fileName
 }
 
@@ -137,7 +137,7 @@ func GetStackInfo(configFilePath string) (*StackInfo, error) {
 	}
 
 	stackName := GenerateStackName(config.ProjectCode, config.Context, configFilePath)
-	
+
 	// Extract app name from filename if not specified in config
 	appName := config.App
 	if appName == "" {

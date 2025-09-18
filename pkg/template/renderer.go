@@ -67,7 +67,7 @@ func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]in
 	// Parse the rendered content as multi-doc YAML
 	var documents []interface{}
 	decoder := yaml.NewDecoder(strings.NewReader(string(rendered)))
-	
+
 	for {
 		var doc interface{}
 		if err := decoder.Decode(&doc); err != nil {
@@ -82,7 +82,7 @@ func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]in
 	// Re-encode as single YAML with document separators
 	var result strings.Builder
 	encoder := yaml.NewEncoder(&result)
-	
+
 	for i, doc := range documents {
 		if i > 0 {
 			result.WriteString("---\n")
