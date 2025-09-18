@@ -1,7 +1,7 @@
 # Frank CLI
 
 ![Test](https://github.com/schnauzersoft/frank-cli/actions/workflows/test.yml/badge.svg)
-![Go Report Card](https://goreportcard.com/report/github.com/schnauzersoft/frank-cli)
+![Go Report Card](https://goreportcard.com/badge/github.com/schnauzersoft/frank-cli)
 
 Simple multi-environment management of Kubernetes resources.
 
