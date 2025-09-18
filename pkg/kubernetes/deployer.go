@@ -44,81 +44,17 @@ func NewDeployer(config *rest.Config, logger *slog.Logger) (*Deployer, error) {
 
 // DeployManifest applies a single manifest file to Kubernetes
 func (d *Deployer) DeployManifest(manifestPath string, stackName string, configNamespace string, timeout time.Duration) (*DeployResult, error) {
-	// Read the manifest file
-	manifestData, err := os.ReadFile(manifestPath)
+	// Parse and prepare the manifest
+	obj, gvr, err := d.parseAndPrepareManifest(manifestPath, stackName, configNamespace)
 	if err != nil {
-		return nil, fmt.Errorf("error reading manifest file: %v", err)
+		return nil, err
 	}
 
-	// Parse the YAML content
-	decoder := k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifestData), 4096)
-	var obj unstructured.Unstructured
-	if err := decoder.Decode(&obj); err != nil {
-		return nil, fmt.Errorf("error parsing YAML: %v", err)
-	}
-
-	apiVersion := obj.GetAPIVersion()
-	kind := obj.GetKind()
-	name := obj.GetName()
-	namespace := obj.GetNamespace()
-
-	// Use config namespace if manifest doesn't have one, otherwise use manifest namespace
-	if namespace == "" {
-		if configNamespace != "" {
-			namespace = configNamespace
-		} else {
-			namespace = "default"
-		}
-	}
-
-	// Add stack name annotation
-	annotations := obj.GetAnnotations()
-	if annotations == nil {
-		annotations = make(map[string]string)
-	}
-	annotations["frankthetank.cloud/stack-name"] = stackName
-	obj.SetAnnotations(annotations)
-
-	d.logger.Debug("Starting apply operation",
-		"stack", stackName,
-		"apiVersion", apiVersion,
-		"kind", kind,
-		"name", name,
-		"namespace", namespace)
-
-	// Get the GVR (GroupVersionResource) for the resource
-	gvr, err := d.getGVR(apiVersion, kind)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GVR for %s/%s: %v", apiVersion, kind, err)
-	}
-
-	// Check if resource already exists
-	existing, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-
-	var operation string
-	var result *unstructured.Unstructured
-
-	if err != nil {
-		// Resource doesn't exist, create it
-		d.logger.Warn("Resource does not exist, creating", "stack", stackName, "name", name, "namespace", namespace)
-		result, err = d.dynamicClient.Resource(gvr).Namespace(namespace).Create(context.TODO(), &obj, metav1.CreateOptions{})
-		operation = "created"
-	} else {
-		// Resource exists, check if it needs applying
-		if d.needsUpdate(existing, &obj) {
-			d.logger.Warn("Updating existing resource", "stack", stackName, "name", name, "namespace", namespace)
-			obj.SetResourceVersion(existing.GetResourceVersion()) // Set resource version for update
-			result, err = d.dynamicClient.Resource(gvr).Namespace(namespace).Update(context.TODO(), &obj, metav1.UpdateOptions{})
-			operation = "applied"
-		} else {
-			result = existing
-			operation = "no-change"
-		}
-	}
-
+	// Apply the resource to Kubernetes
+	operation, result, err := d.applyResource(obj, gvr, stackName)
 	if err != nil {
 		return &DeployResult{
-			Resource:  &obj,
+			Resource:  obj,
 			Operation: operation,
 			Status:    "failed",
 			Error:     err,
@@ -126,19 +62,8 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, configN
 		}, nil
 	}
 
-	// Poll for completion only if we made changes
-	var status string
-	if operation == "created" || operation == "applied" {
-		status, err = d.pollForCompletion(gvr, namespace, name, stackName, result, timeout)
-		if err != nil {
-			d.logger.Warn("Error polling for completion", "stack", stackName, "error", err)
-		}
-	} else {
-		// No changes made, resource is already up to date
-		status = "ready"
-		d.logger.Info("Resource is already up to date", "stack", stackName, "name", name, "namespace", namespace)
-	}
-
+	// Poll for completion and return result
+	status := d.determineStatus(operation, gvr, result, stackName, timeout)
 	return &DeployResult{
 		Resource:  result,
 		Operation: operation,
@@ -146,6 +71,107 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, configN
 		Error:     err,
 		Timestamp: time.Now(),
 	}, nil
+}
+
+// parseAndPrepareManifest reads, parses, and prepares a manifest file
+func (d *Deployer) parseAndPrepareManifest(manifestPath, stackName, configNamespace string) (*unstructured.Unstructured, schema.GroupVersionResource, error) {
+	// Read the manifest file
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("error reading manifest file: %v", err)
+	}
+
+	// Parse the YAML content
+	decoder := k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifestData), 4096)
+	var obj unstructured.Unstructured
+	if err := decoder.Decode(&obj); err != nil {
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("error parsing YAML: %v", err)
+	}
+
+	// Set namespace
+	namespace := d.determineNamespace(obj.GetNamespace(), configNamespace)
+	obj.SetNamespace(namespace)
+
+	// Add stack name annotation
+	d.addStackAnnotation(&obj, stackName)
+
+	// Get the GVR (GroupVersionResource) for the resource
+	gvr, err := d.getGVR(obj.GetAPIVersion(), obj.GetKind())
+	if err != nil {
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("failed to get GVR for %s/%s: %v", obj.GetAPIVersion(), obj.GetKind(), err)
+	}
+
+	d.logger.Debug("Starting apply operation",
+		"stack", stackName,
+		"apiVersion", obj.GetAPIVersion(),
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", namespace)
+
+	return &obj, gvr, nil
+}
+
+// determineNamespace determines the namespace to use
+func (d *Deployer) determineNamespace(manifestNamespace, configNamespace string) string {
+	if manifestNamespace != "" {
+		return manifestNamespace
+	}
+	if configNamespace != "" {
+		return configNamespace
+	}
+	return "default"
+}
+
+// addStackAnnotation adds the stack name annotation to the resource
+func (d *Deployer) addStackAnnotation(obj *unstructured.Unstructured, stackName string) {
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations["frankthetank.cloud/stack-name"] = stackName
+	obj.SetAnnotations(annotations)
+}
+
+// applyResource applies the resource to Kubernetes
+func (d *Deployer) applyResource(obj *unstructured.Unstructured, gvr schema.GroupVersionResource, stackName string) (string, *unstructured.Unstructured, error) {
+	namespace := obj.GetNamespace()
+	name := obj.GetName()
+
+	// Check if resource already exists
+	existing, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+
+	if err != nil {
+		// Resource doesn't exist, create it
+		d.logger.Warn("Resource does not exist, creating", "stack", stackName, "name", name, "namespace", namespace)
+		result, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Create(context.TODO(), obj, metav1.CreateOptions{})
+		return "created", result, err
+	}
+
+	// Resource exists, check if it needs applying
+	if d.needsUpdate(existing, obj) {
+		d.logger.Warn("Updating existing resource", "stack", stackName, "name", name, "namespace", namespace)
+		obj.SetResourceVersion(existing.GetResourceVersion()) // Set resource version for update
+		result, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+		return "applied", result, err
+	}
+
+	// No changes needed
+	return "no-change", existing, nil
+}
+
+// determineStatus determines the final status of the deployment
+func (d *Deployer) determineStatus(operation string, gvr schema.GroupVersionResource, result *unstructured.Unstructured, stackName string, timeout time.Duration) string {
+	if operation == "created" || operation == "applied" {
+		status, err := d.pollForCompletion(gvr, result.GetNamespace(), result.GetName(), stackName, result, timeout)
+		if err != nil {
+			d.logger.Warn("Error polling for completion", "stack", stackName, "error", err)
+		}
+		return status
+	}
+
+	// No changes made, resource is already up to date
+	d.logger.Info("Resource is already up to date", "stack", stackName, "name", result.GetName(), "namespace", result.GetNamespace())
+	return "ready"
 }
 
 // getGVR converts an API version and kind to a GroupVersionResource

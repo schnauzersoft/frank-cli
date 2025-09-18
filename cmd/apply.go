@@ -118,28 +118,40 @@ func findConfigDirectory() (string, error) {
 		return "", fmt.Errorf("error getting current directory: %v", err)
 	}
 
-	// First check current directory
-	configPath := filepath.Join(currentDir, "config")
-	if stat, err := os.Stat(configPath); err == nil && stat.IsDir() {
-		// Verify it's actually a directory and has a config.yaml file
-		configYamlPath := filepath.Join(configPath, "config.yaml")
-		if _, err := os.Stat(configYamlPath); err == nil {
+	// Check current directory
+	if configPath := checkConfigDirectory(currentDir); configPath != "" {
+		return configPath, nil
+	}
+
+	// Check parent directory only
+	parentDir := filepath.Dir(currentDir)
+	if parentDir != currentDir {
+		if configPath := checkConfigDirectory(parentDir); configPath != "" {
 			return configPath, nil
 		}
 	}
 
-	// Then check parent directory only
-	parentDir := filepath.Dir(currentDir)
-	if parentDir != currentDir {
-		configPath := filepath.Join(parentDir, "config")
-		if stat, err := os.Stat(configPath); err == nil && stat.IsDir() {
-			// Verify it's actually a directory and has a config.yaml file
-			configYamlPath := filepath.Join(configPath, "config.yaml")
-			if _, err := os.Stat(configYamlPath); err == nil {
-				return configPath, nil
-			}
-		}
+	return "", fmt.Errorf("config directory with config.yaml not found in current directory or immediate parent")
+}
+
+// checkConfigDirectory checks if a directory contains a valid config directory
+func checkConfigDirectory(dir string) string {
+	configPath := filepath.Join(dir, "config")
+	if !isValidConfigDirectory(configPath) {
+		return ""
+	}
+	return configPath
+}
+
+// isValidConfigDirectory checks if a path is a valid config directory
+func isValidConfigDirectory(configPath string) bool {
+	stat, err := os.Stat(configPath)
+	if err != nil || !stat.IsDir() {
+		return false
 	}
 
-	return "", fmt.Errorf("config directory with config.yaml not found in current directory or immediate parent")
+	// Verify it has a config.yaml file
+	configYamlPath := filepath.Join(configPath, "config.yaml")
+	_, err = os.Stat(configYamlPath)
+	return err == nil
 }

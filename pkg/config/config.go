@@ -27,6 +27,19 @@ type Config struct {
 // 4. /etc/frank/config.yaml
 func LoadConfig() (*Config, error) {
 	// Set up Viper
+	setupViper()
+
+	// Load config files in order of precedence
+	if err := loadConfigFiles(); err != nil {
+		return nil, err
+	}
+
+	// Unmarshal and normalize configuration
+	return unmarshalConfig()
+}
+
+// setupViper configures Viper with environment variables and defaults
+func setupViper() {
 	viper.SetConfigType("yaml")
 	viper.SetConfigName(".frank")
 	viper.AddConfigPath(".")
@@ -40,38 +53,70 @@ func LoadConfig() (*Config, error) {
 
 	// Set default values
 	viper.SetDefault("log_level", "info")
+}
 
-	// Try to read config files in order of precedence
+// loadConfigFiles loads configuration files in order of precedence
+func loadConfigFiles() error {
 	// 1. Current directory (.frank.yaml)
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("error reading config file: %v", err)
-		}
-		// Config file not found is okay, we'll try other locations
+	if err := loadCurrentDirectoryConfig(); err != nil {
+		return err
 	}
 
 	// 2. Home directory ($HOME/.frank/config.yaml)
-	homeDir, err := os.UserHomeDir()
-	if err == nil {
-		homeConfigPath := filepath.Join(homeDir, ".frank", "config.yaml")
-		if _, err := os.Stat(homeConfigPath); err == nil {
-			viper.SetConfigFile(homeConfigPath)
-			if err := viper.MergeInConfig(); err != nil {
-				return nil, fmt.Errorf("error reading home config file: %v", err)
-			}
-		}
+	if err := loadHomeConfig(); err != nil {
+		return err
 	}
 
 	// 3. System directory (/etc/frank/config.yaml)
-	systemConfigPath := "/etc/frank/config.yaml"
-	if _, err := os.Stat(systemConfigPath); err == nil {
-		viper.SetConfigFile(systemConfigPath)
-		if err := viper.MergeInConfig(); err != nil {
-			return nil, fmt.Errorf("error reading system config file: %v", err)
+	return loadSystemConfig()
+}
+
+// loadCurrentDirectoryConfig loads config from current directory
+func loadCurrentDirectoryConfig() error {
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return fmt.Errorf("error reading config file: %v", err)
 		}
+		// Config file not found is okay, we'll try other locations
+	}
+	return nil
+}
+
+// loadHomeConfig loads config from home directory
+func loadHomeConfig() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil // Home directory not available, skip
 	}
 
-	// Unmarshal configuration
+	homeConfigPath := filepath.Join(homeDir, ".frank", "config.yaml")
+	if _, err := os.Stat(homeConfigPath); err != nil {
+		return nil // File doesn't exist, skip
+	}
+
+	viper.SetConfigFile(homeConfigPath)
+	if err := viper.MergeInConfig(); err != nil {
+		return fmt.Errorf("error reading home config file: %v", err)
+	}
+	return nil
+}
+
+// loadSystemConfig loads config from system directory
+func loadSystemConfig() error {
+	systemConfigPath := "/etc/frank/config.yaml"
+	if _, err := os.Stat(systemConfigPath); err != nil {
+		return nil // File doesn't exist, skip
+	}
+
+	viper.SetConfigFile(systemConfigPath)
+	if err := viper.MergeInConfig(); err != nil {
+		return fmt.Errorf("error reading system config file: %v", err)
+	}
+	return nil
+}
+
+// unmarshalConfig unmarshals and normalizes the configuration
+func unmarshalConfig() (*Config, error) {
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config: %v", err)

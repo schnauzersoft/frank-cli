@@ -65,6 +65,17 @@ func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]in
 	}
 
 	// Parse the rendered content as multi-doc YAML
+	documents, err := r.parseMultiDocYAML(rendered)
+	if err != nil {
+		return nil, err
+	}
+
+	// Re-encode as single YAML with document separators
+	return r.encodeMultiDocYAML(documents)
+}
+
+// parseMultiDocYAML parses multi-document YAML content
+func (r *Renderer) parseMultiDocYAML(rendered []byte) ([]interface{}, error) {
 	var documents []interface{}
 	decoder := yaml.NewDecoder(strings.NewReader(string(rendered)))
 
@@ -79,7 +90,11 @@ func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]in
 		documents = append(documents, doc)
 	}
 
-	// Re-encode as single YAML with document separators
+	return documents, nil
+}
+
+// encodeMultiDocYAML encodes documents as multi-document YAML
+func (r *Renderer) encodeMultiDocYAML(documents []interface{}) ([]byte, error) {
 	var result strings.Builder
 	encoder := yaml.NewEncoder(&result)
 

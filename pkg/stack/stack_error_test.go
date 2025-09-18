@@ -7,7 +7,32 @@ import (
 )
 
 func TestReadConfigForFileErrors(t *testing.T) {
-	tests := []struct {
+	tests := createErrorTestCases()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+
+			err := tt.setup(tempDir)
+			if err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			configFile := filepath.Join(tempDir, "config.yaml")
+			_, err = ReadConfigForFile(configFile)
+
+			validateErrorTestResult(t, err, tt.expectError)
+		})
+	}
+}
+
+// createErrorTestCases creates test cases for error scenarios
+func createErrorTestCases() []struct {
+	name        string
+	setup       func(string) error
+	expectError bool
+} {
+	return []struct {
 		name        string
 		setup       func(string) error
 		expectError bool
@@ -50,29 +75,18 @@ version: 1.0.0`
 			expectError: false,
 		},
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tempDir := t.TempDir()
-
-			err := tt.setup(tempDir)
-			if err != nil {
-				t.Fatalf("Setup failed: %v", err)
-			}
-
-			configFile := filepath.Join(tempDir, "config.yaml")
-			_, err = ReadConfigForFile(configFile)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
-				}
-			}
-		})
+// validateErrorTestResult validates the result of an error test
+func validateErrorTestResult(t *testing.T, err error, expectError bool) {
+	if expectError {
+		if err == nil {
+			t.Errorf("Expected error but got none")
+		}
+	} else {
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
 	}
 }
 

@@ -117,24 +117,29 @@ func TestBuildTemplateContext(t *testing.T) {
 				tt.stackName, tt.context, tt.projectCode, tt.namespace, tt.app, tt.version,
 			)
 
-			// Check that all expected keys exist
-			for _, key := range tt.expectedKeys {
-				if _, exists := context[key]; !exists {
-					t.Errorf("Expected key %s not found in context", key)
-				}
-			}
-
-			// Check specific values
-			for key, expectedValue := range tt.expectedValues {
-				if actualValue, exists := context[key]; exists {
-					if actualValue != expectedValue {
-						t.Errorf("Context[%s] = %v, want %v", key, actualValue, expectedValue)
-					}
-				} else {
-					t.Errorf("Expected key %s not found in context", key)
-				}
-			}
+			validateTemplateContext(t, context, tt.expectedKeys, tt.expectedValues)
 		})
+	}
+}
+
+// validateTemplateContext validates the template context against expected keys and values
+func validateTemplateContext(t *testing.T, context map[string]interface{}, expectedKeys []string, expectedValues map[string]string) {
+	// Check that all expected keys exist
+	for _, key := range expectedKeys {
+		if _, exists := context[key]; !exists {
+			t.Errorf("Expected key %s not found in context", key)
+		}
+	}
+
+	// Check specific values
+	for key, expectedValue := range expectedValues {
+		if actualValue, exists := context[key]; exists {
+			if actualValue != expectedValue {
+				t.Errorf("Context[%s] = %v, want %v", key, actualValue, expectedValue)
+			}
+		} else {
+			t.Errorf("Expected key %s not found in context", key)
+		}
 	}
 }
 

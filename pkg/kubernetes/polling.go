@@ -25,28 +25,68 @@ func (d *Deployer) pollForCompletion(gvr schema.GroupVersionResource, namespace,
 		case <-ctx.Done():
 			return "timeout", fmt.Errorf("timeout waiting for resource to be ready")
 		case <-ticker.C:
-			// Get the current state of the resource
-			current, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+			status, err := d.checkResourceStatus(gvr, namespace, name, stackName)
 			if err != nil {
-				d.logger.Warn("Error getting resource during polling", "stack", stackName, "error", err)
-				continue
+				return status, err
 			}
-
-			// Check the status based on resource type
-			status := d.getResourceStatus(current)
-			if status == "Ready" || status == "Available" || status == "Complete" {
-				d.logger.Info("Resource is ready", "stack", stackName, "name", name, "namespace", namespace, "status", status)
+			if status != "" {
 				return status, nil
 			}
-			if status == "Failed" || status == "ReplicaFailure" {
-				d.logger.Error("Resource failed", "stack", stackName, "name", name, "namespace", namespace, "status", status)
-				return status, fmt.Errorf("resource failed with status: %s", status)
-			}
-
-			// Still progressing, continue polling
-			d.logger.Debug("Resource still progressing", "stack", stackName, "name", name, "namespace", namespace, "status", status)
 		}
 	}
+}
+
+// checkResourceStatus checks the current status of a resource
+func (d *Deployer) checkResourceStatus(gvr schema.GroupVersionResource, namespace, name, stackName string) (string, error) {
+	// Get the current state of the resource
+	current, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		d.logger.Warn("Error getting resource during polling", "stack", stackName, "error", err)
+		return "", nil // Continue polling
+	}
+
+	// Check the status based on resource type
+	status := d.getResourceStatus(current)
+	return d.handleResourceStatus(status, stackName, name, namespace)
+}
+
+// handleResourceStatus handles the resource status and returns appropriate response
+func (d *Deployer) handleResourceStatus(status, stackName, name, namespace string) (string, error) {
+	if d.isResourceReady(status) {
+		d.logger.Info("Resource is ready", "stack", stackName, "name", name, "namespace", namespace, "status", status)
+		return status, nil
+	}
+
+	if d.isResourceFailed(status) {
+		d.logger.Error("Resource failed", "stack", stackName, "name", name, "namespace", namespace, "status", status)
+		return status, fmt.Errorf("resource failed with status: %s", status)
+	}
+
+	// Still progressing, continue polling
+	d.logger.Debug("Resource still progressing", "stack", stackName, "name", name, "namespace", namespace, "status", status)
+	return "", nil
+}
+
+// isResourceReady checks if the resource is in a ready state
+func (d *Deployer) isResourceReady(status string) bool {
+	readyStatuses := []string{"Ready", "Available", "Complete"}
+	for _, readyStatus := range readyStatuses {
+		if status == readyStatus {
+			return true
+		}
+	}
+	return false
+}
+
+// isResourceFailed checks if the resource is in a failed state
+func (d *Deployer) isResourceFailed(status string) bool {
+	failedStatuses := []string{"Failed", "ReplicaFailure"}
+	for _, failedStatus := range failedStatuses {
+		if status == failedStatus {
+			return true
+		}
+	}
+	return false
 }
 
 // getResourceStatus determines the status of a Kubernetes resource

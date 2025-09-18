@@ -12,6 +12,25 @@ func TestFilterConfigFilesByStack(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create config files
+	createTestConfigFiles(t, tempDir)
+
+	deployer := &Deployer{
+		configDir: tempDir,
+		logger:    slog.Default(),
+	}
+
+	tests := createFilterTestCases(tempDir)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := deployer.filterConfigFilesByStack(tt.configFiles, tt.stackFilter)
+			validateFilterResult(t, result, tt.expected)
+		})
+	}
+}
+
+// createTestConfigFiles creates the test directory structure and config files
+func createTestConfigFiles(t *testing.T, tempDir string) []string {
 	configFiles := []string{
 		filepath.Join(tempDir, "app.yaml"),
 		filepath.Join(tempDir, "api.yaml"),
@@ -33,12 +52,28 @@ func TestFilterConfigFilesByStack(t *testing.T) {
 		}
 	}
 
-	deployer := &Deployer{
-		configDir: tempDir,
-		logger:    slog.Default(),
+	return configFiles
+}
+
+// createFilterTestCases creates test cases for filtering
+func createFilterTestCases(tempDir string) []struct {
+	name        string
+	configFiles []string
+	stackFilter string
+	expected    []string
+} {
+	// Create the config files list for all tests
+	configFiles := []string{
+		filepath.Join(tempDir, "app.yaml"),
+		filepath.Join(tempDir, "api.yaml"),
+		filepath.Join(tempDir, "web.yaml"),
+		filepath.Join(tempDir, "dev", "app.yaml"),
+		filepath.Join(tempDir, "dev", "api.yaml"),
+		filepath.Join(tempDir, "prod", "web.yaml"),
+		filepath.Join(tempDir, "prod", "api.yaml"),
 	}
 
-	tests := []struct {
+	return []struct {
 		name        string
 		configFiles []string
 		stackFilter string
@@ -90,28 +125,25 @@ func TestFilterConfigFilesByStack(t *testing.T) {
 			expected:    []string{},
 		},
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := deployer.filterConfigFilesByStack(tt.configFiles, tt.stackFilter)
+// validateFilterResult validates the result of filtering
+func validateFilterResult(t *testing.T, result, expected []string) {
+	if len(result) != len(expected) {
+		t.Errorf("filterConfigFilesByStack() returned %d files, want %d", len(result), len(expected))
+		return
+	}
 
-			if len(result) != len(tt.expected) {
-				t.Errorf("filterConfigFilesByStack() returned %d files, want %d", len(result), len(tt.expected))
-				return
-			}
+	// Convert to map for easier comparison
+	resultMap := make(map[string]bool)
+	for _, file := range result {
+		resultMap[file] = true
+	}
 
-			// Convert to map for easier comparison
-			resultMap := make(map[string]bool)
-			for _, file := range result {
-				resultMap[file] = true
-			}
-
-			for _, expectedFile := range tt.expected {
-				if !resultMap[expectedFile] {
-					t.Errorf("Expected file %s not found in result", expectedFile)
-				}
-			}
-		})
+	for _, expectedFile := range expected {
+		if !resultMap[expectedFile] {
+			t.Errorf("Expected file %s not found in result", expectedFile)
+		}
 	}
 }
 
@@ -188,7 +220,33 @@ func TestValidateNamespaceConfiguration(t *testing.T) {
 		logger: slog.Default(),
 	}
 
-	tests := []struct {
+	tests := createNamespaceValidationTestCases()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary manifest file
+			manifestPath := filepath.Join(tempDir, "test-manifest.yaml")
+			err := os.WriteFile(manifestPath, []byte(tt.manifestContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to create manifest file: %v", err)
+			}
+
+			// Test validation
+			err = deployer.validateNamespaceConfiguration(manifestPath, tt.configNamespace)
+			validateNamespaceTestResult(t, err, tt.expectError, tt.errorContains)
+		})
+	}
+}
+
+// createNamespaceValidationTestCases creates test cases for namespace validation
+func createNamespaceValidationTestCases() []struct {
+	name            string
+	manifestContent string
+	configNamespace string
+	expectError     bool
+	errorContains   string
+} {
+	return []struct {
 		name            string
 		manifestContent string
 		configNamespace string
@@ -269,33 +327,22 @@ spec:
 			errorContains:   "failed to parse manifest YAML",
 		},
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create temporary manifest file
-			manifestPath := filepath.Join(tempDir, "test-manifest.yaml")
-			err := os.WriteFile(manifestPath, []byte(tt.manifestContent), 0644)
-			if err != nil {
-				t.Fatalf("Failed to create manifest file: %v", err)
-			}
-
-			// Test validation
-			err = deployer.validateNamespaceConfiguration(manifestPath, tt.configNamespace)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("validateNamespaceConfiguration() expected error but got none")
-					return
-				}
-				if tt.errorContains != "" && !contains(err.Error(), tt.errorContains) {
-					t.Errorf("validateNamespaceConfiguration() error = %v, want error containing %s", err, tt.errorContains)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("validateNamespaceConfiguration() unexpected error: %v", err)
-				}
-			}
-		})
+// validateNamespaceTestResult validates the result of namespace validation test
+func validateNamespaceTestResult(t *testing.T, err error, expectError bool, errorContains string) {
+	if expectError {
+		if err == nil {
+			t.Errorf("validateNamespaceConfiguration() expected error but got none")
+			return
+		}
+		if errorContains != "" && !contains(err.Error(), errorContains) {
+			t.Errorf("validateNamespaceConfiguration() error = %v, want error containing %s", err, errorContains)
+		}
+	} else {
+		if err != nil {
+			t.Errorf("validateNamespaceConfiguration() unexpected error: %v", err)
+		}
 	}
 }
 

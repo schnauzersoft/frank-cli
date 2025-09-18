@@ -18,7 +18,6 @@ import (
 	"frank/pkg/template"
 
 	"gopkg.in/yaml.v3"
-	k8sclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -176,36 +175,51 @@ func (d *Deployer) matchesStackFilter(stackPattern, filter string) bool {
 		return false
 	}
 
-	// Exact match
+	// Check exact match
 	if stackPattern == filter {
 		return true
 	}
 
-	// Check if stack pattern starts with filter (for directory matching)
+	// Check prefix matches
+	if d.matchesPrefixPattern(stackPattern, filter) {
+		return true
+	}
+
+	// Check path pattern with dashes
+	if d.matchesPathPattern(stackPattern, filter) {
+		return true
+	}
+
+	return false
+}
+
+// matchesPrefixPattern checks if stack pattern starts with filter
+func (d *Deployer) matchesPrefixPattern(stackPattern, filter string) bool {
+	// Directory matching: "dev" matches "dev/app"
 	if strings.HasPrefix(stackPattern, filter+"/") {
 		return true
 	}
 
-	// Check if stack pattern starts with filter (for partial matching)
+	// Partial matching: "dev" matches "dev-app"
 	if strings.HasPrefix(stackPattern, filter) {
 		return true
 	}
 
-	// Check if filter is a path pattern that matches with dashes
-	// e.g., "dev/app" should match "frank-dev-app" (where frank is project_code)
+	return false
+}
+
+// matchesPathPattern checks if filter matches as a path pattern with dashes
+func (d *Deployer) matchesPathPattern(stackPattern, filter string) bool {
+	// Convert "dev/app" to "dev-app" and check if stack starts with it
 	filterWithDashes := strings.ReplaceAll(filter, "/", "-")
 	if strings.HasPrefix(stackPattern, filterWithDashes) {
 		return true
 	}
 
-	// Check if filter is a file pattern that matches
-	// e.g., "dev/app" should match "dev/app.yaml" -> "dev/app"
+	// Check file pattern matching: "dev/app" matches "dev/app.yaml" -> "dev/app"
 	if strings.HasPrefix(stackPattern, filter) && len(stackPattern) > len(filter) {
-		// Check if the next character is a separator or end of string
 		nextChar := stackPattern[len(filter) : len(filter)+1]
-		if nextChar == "/" || nextChar == "-" || nextChar == "_" {
-			return true
-		}
+		return nextChar == "/" || nextChar == "-" || nextChar == "_"
 	}
 
 	return false
@@ -215,11 +229,29 @@ func (d *Deployer) matchesStackFilter(stackPattern, filter string) bool {
 func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	timestamp := time.Now()
 
+	// Read manifest config
+	manifestConfig, stackInfo, result := d.readConfigAndStackInfo(configPath, timestamp)
+	if result.Error != nil {
+		return result
+	}
+
+	// Find and prepare manifest file
+	finalManifestPath, result := d.findAndPrepareManifest(manifestConfig, stackInfo, timestamp)
+	if result.Error != nil {
+		return result
+	}
+
+	// Validate and apply manifest
+	return d.validateAndApplyManifest(finalManifestPath, manifestConfig, stackInfo, timestamp)
+}
+
+// readConfigAndStackInfo reads the manifest config and gets stack info
+func (d *Deployer) readConfigAndStackInfo(configPath string, timestamp time.Time) (*ManifestConfig, *stack.StackInfo, DeploymentResult) {
 	// Read the manifest config
 	manifestConfig, err := d.readManifestConfig(configPath)
 	if err != nil {
 		d.logger.Debug("Failed to read manifest config", "config_file", configPath, "error", err)
-		return DeploymentResult{
+		return nil, nil, DeploymentResult{
 			Context:   "unknown",
 			StackName: "unknown",
 			Manifest:  filepath.Base(configPath),
@@ -235,7 +267,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	stackInfo, err := stack.GetStackInfo(configPath)
 	if err != nil {
 		d.logger.Debug("Failed to get stack info", "error", err)
-		return DeploymentResult{
+		return nil, nil, DeploymentResult{
 			Context:   "unknown",
 			StackName: stack.GenerateFallbackStackName(configPath),
 			Manifest:  manifestConfig.Manifest,
@@ -246,14 +278,18 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	}
 
 	d.logger.Debug("Generated stack info", "stack_name", stackInfo.Name, "context", stackInfo.Context, "project_code", stackInfo.ProjectCode, "namespace", stackInfo.Namespace, "app", stackInfo.App, "version", stackInfo.Version)
-
 	d.logger.Debug("Using Kubernetes client", "context", stackInfo.Context)
 
+	return manifestConfig, stackInfo, DeploymentResult{}
+}
+
+// findAndPrepareManifest finds the manifest file and renders it if it's a template
+func (d *Deployer) findAndPrepareManifest(manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) (string, DeploymentResult) {
 	// Find the manifest file
 	manifestPath, err := d.findManifestFile(manifestConfig.Manifest)
 	if err != nil {
 		d.logger.Debug("Failed to find manifest file", "manifest", manifestConfig.Manifest, "error", err)
-		return DeploymentResult{
+		return "", DeploymentResult{
 			Context:   stackInfo.Context,
 			StackName: stackInfo.Name,
 			Manifest:  manifestConfig.Manifest,
@@ -264,65 +300,74 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	}
 
 	// Check if this is a template file and render it
-	finalManifestPath := manifestPath
 	if d.templateRenderer.IsTemplateFile(manifestPath) {
-		d.logger.Debug("Rendering template", "template", manifestPath)
-
-		// Build template context
-		templateContext := d.templateRenderer.BuildTemplateContext(
-			stackInfo.Name,
-			stackInfo.Context,
-			stackInfo.ProjectCode,
-			stackInfo.Namespace,
-			stackInfo.App,
-			stackInfo.Version,
-		)
-
-		// Render the template to a temporary file
-		renderedContent, err := d.templateRenderer.RenderManifest(manifestPath, templateContext)
-		if err != nil {
-			d.logger.Debug("Failed to render template", "template", manifestPath, "error", err)
-			return DeploymentResult{
-				Context:   stackInfo.Context,
-				StackName: stackInfo.Name,
-				Manifest:  manifestConfig.Manifest,
-				Response:  "",
-				Error:     fmt.Errorf("error rendering template: %v", err),
-				Timestamp: timestamp,
-			}
-		}
-
-		// Create a temporary file for the rendered content
-		tempFile, err := os.CreateTemp("", "frank-rendered-*.yaml")
-		if err != nil {
-			return DeploymentResult{
-				Context:   stackInfo.Context,
-				StackName: stackInfo.Name,
-				Manifest:  manifestConfig.Manifest,
-				Response:  "",
-				Error:     fmt.Errorf("error creating temp file: %v", err),
-				Timestamp: timestamp,
-			}
-		}
-		defer os.Remove(tempFile.Name()) // Clean up temp file
-
-		if _, err := tempFile.Write(renderedContent); err != nil {
-			tempFile.Close()
-			return DeploymentResult{
-				Context:   stackInfo.Context,
-				StackName: stackInfo.Name,
-				Manifest:  manifestConfig.Manifest,
-				Response:  "",
-				Error:     fmt.Errorf("error writing rendered content: %v", err),
-				Timestamp: timestamp,
-			}
-		}
-		tempFile.Close()
-
-		finalManifestPath = tempFile.Name()
-		d.logger.Debug("Template rendered successfully", "template", manifestPath, "rendered", finalManifestPath)
+		return d.renderTemplate(manifestPath, stackInfo, manifestConfig, timestamp)
 	}
 
+	return manifestPath, DeploymentResult{}
+}
+
+// renderTemplate renders a Jinja template to a temporary file
+func (d *Deployer) renderTemplate(manifestPath string, stackInfo *stack.StackInfo, manifestConfig *ManifestConfig, timestamp time.Time) (string, DeploymentResult) {
+	d.logger.Debug("Rendering template", "template", manifestPath)
+
+	// Build template context
+	templateContext := d.templateRenderer.BuildTemplateContext(
+		stackInfo.Name,
+		stackInfo.Context,
+		stackInfo.ProjectCode,
+		stackInfo.Namespace,
+		stackInfo.App,
+		stackInfo.Version,
+	)
+
+	// Render the template to a temporary file
+	renderedContent, err := d.templateRenderer.RenderManifest(manifestPath, templateContext)
+	if err != nil {
+		d.logger.Debug("Failed to render template", "template", manifestPath, "error", err)
+		return "", DeploymentResult{
+			Context:   stackInfo.Context,
+			StackName: stackInfo.Name,
+			Manifest:  manifestConfig.Manifest,
+			Response:  "",
+			Error:     fmt.Errorf("error rendering template: %v", err),
+			Timestamp: timestamp,
+		}
+	}
+
+	// Create a temporary file for the rendered content
+	tempFile, err := os.CreateTemp("", "frank-rendered-*.yaml")
+	if err != nil {
+		return "", DeploymentResult{
+			Context:   stackInfo.Context,
+			StackName: stackInfo.Name,
+			Manifest:  manifestConfig.Manifest,
+			Response:  "",
+			Error:     fmt.Errorf("error creating temp file: %v", err),
+			Timestamp: timestamp,
+		}
+	}
+	defer os.Remove(tempFile.Name()) // Clean up temp file
+
+	if _, err := tempFile.Write(renderedContent); err != nil {
+		tempFile.Close()
+		return "", DeploymentResult{
+			Context:   stackInfo.Context,
+			StackName: stackInfo.Name,
+			Manifest:  manifestConfig.Manifest,
+			Response:  "",
+			Error:     fmt.Errorf("error writing rendered content: %v", err),
+			Timestamp: timestamp,
+		}
+	}
+	tempFile.Close()
+
+	d.logger.Debug("Template rendered successfully", "template", manifestPath, "rendered", tempFile.Name())
+	return tempFile.Name(), DeploymentResult{}
+}
+
+// validateAndApplyManifest validates namespace and applies the manifest
+func (d *Deployer) validateAndApplyManifest(finalManifestPath string, manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) DeploymentResult {
 	// Set default timeout if not specified
 	timeout := manifestConfig.Timeout
 	if timeout == 0 {
@@ -358,18 +403,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	}
 
 	// Format response based on the result
-	var response string
-	if result.Error != nil {
-		response = fmt.Sprintf("Apply failed: %v", result.Error)
-	} else {
-		response = fmt.Sprintf("Applied %s/%s: %s in namespace %s (operation: %s, status: %s)",
-			result.Resource.GetAPIVersion(),
-			result.Resource.GetKind(),
-			result.Resource.GetName(),
-			result.Resource.GetNamespace(),
-			result.Operation,
-			result.Status)
-	}
+	response := d.formatResponse(result)
 
 	d.logger.Debug("Apply completed", "manifest", manifestConfig.Manifest, "response", response)
 
@@ -381,6 +415,20 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		Error:     nil,
 		Timestamp: timestamp,
 	}
+}
+
+// formatResponse formats the response string based on the deployment result
+func (d *Deployer) formatResponse(result *kubernetes.DeployResult) string {
+	if result.Error != nil {
+		return fmt.Sprintf("Apply failed: %v", result.Error)
+	}
+	return fmt.Sprintf("Applied %s/%s: %s in namespace %s (operation: %s, status: %s)",
+		result.Resource.GetAPIVersion(),
+		result.Resource.GetKind(),
+		result.Resource.GetName(),
+		result.Resource.GetNamespace(),
+		result.Operation,
+		result.Status)
 }
 
 // readManifestConfig reads a manifest config file
@@ -418,29 +466,6 @@ func createKubernetesConfig() (*rest.Config, error) {
 	return config, nil
 }
 
-// createKubernetesClient creates a Kubernetes client using the specified context
-func (d *Deployer) createKubernetesClient(contextName string) (k8sclient.Interface, error) {
-	// Load kubeconfig from default location
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configOverrides := &clientcmd.ConfigOverrides{
-		CurrentContext: contextName,
-	}
-
-	// Build config from kubeconfig with context override
-	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides).ClientConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	// Create the clientset
-	clientset, err := k8sclient.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-
-	return clientset, nil
-}
-
 // findManifestFile searches for a manifest file in the manifests directory and its subdirectories
 func (d *Deployer) findManifestFile(manifestName string) (string, error) {
 	// Find the project root (where manifests directory is located)
@@ -475,31 +500,53 @@ func (d *Deployer) findManifestInSubdirectories(dir, manifestName string) (strin
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			// Search in this subdirectory
 			subdirPath := filepath.Join(dir, entry.Name())
-			manifestPath := filepath.Join(subdirPath, manifestName)
-
-			if _, err := os.Stat(manifestPath); err == nil {
-				return manifestPath, nil
-			}
-
-			// Check for Jinja template versions
-			jinjaExtensions := []string{".jinja", ".j2"}
-			for _, ext := range jinjaExtensions {
-				jinjaPath := strings.TrimSuffix(manifestPath, filepath.Ext(manifestPath)) + ext
-				if _, err := os.Stat(jinjaPath); err == nil {
-					return jinjaPath, nil
-				}
-			}
-
-			// Recursively search in deeper subdirectories
-			if found, err := d.findManifestInSubdirectories(subdirPath, manifestName); err == nil {
+			if found := d.searchInSubdirectory(subdirPath, manifestName); found != "" {
 				return found, nil
 			}
 		}
 	}
 
 	return "", fmt.Errorf("manifest file not found: %s (searched in manifests directory and subdirectories)", manifestName)
+}
+
+// searchInSubdirectory searches for a manifest in a specific subdirectory
+func (d *Deployer) searchInSubdirectory(subdirPath, manifestName string) string {
+	// Check for regular manifest file
+	manifestPath := filepath.Join(subdirPath, manifestName)
+	if d.fileExists(manifestPath) {
+		return manifestPath
+	}
+
+	// Check for Jinja template versions
+	if jinjaPath := d.findJinjaTemplate(manifestPath); jinjaPath != "" {
+		return jinjaPath
+	}
+
+	// Recursively search in deeper subdirectories
+	if found, err := d.findManifestInSubdirectories(subdirPath, manifestName); err == nil {
+		return found
+	}
+
+	return ""
+}
+
+// fileExists checks if a file exists
+func (d *Deployer) fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// findJinjaTemplate looks for Jinja template versions of a manifest file
+func (d *Deployer) findJinjaTemplate(manifestPath string) string {
+	jinjaExtensions := []string{".jinja", ".j2"}
+	for _, ext := range jinjaExtensions {
+		jinjaPath := strings.TrimSuffix(manifestPath, filepath.Ext(manifestPath)) + ext
+		if d.fileExists(jinjaPath) {
+			return jinjaPath
+		}
+	}
+	return ""
 }
 
 // validateNamespaceConfiguration checks for namespace conflicts between config and manifest

@@ -96,49 +96,8 @@ func TestExtractAppNameFromFilename(t *testing.T) {
 }
 
 func TestReadConfigForFile(t *testing.T) {
-	// Create a temporary directory structure
-	tempDir := t.TempDir()
-
-	// Create base config
-	baseConfig := `context: base
-project_code: test
-version: 1.0.0
-namespace: default`
-	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create base config: %v", err)
-	}
-
-	// Create child config
-	childDir := filepath.Join(tempDir, "dev")
-	err = os.Mkdir(childDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create child directory: %v", err)
-	}
-
-	childConfig := `context: dev
-namespace: dev-namespace
-app: web
-version: 2.0.0`
-	err = os.WriteFile(filepath.Join(childDir, "config.yaml"), []byte(childConfig), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create child config: %v", err)
-	}
-
-	// Create another child config in a subdirectory
-	apiDir := filepath.Join(childDir, "api")
-	err = os.Mkdir(apiDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create api directory: %v", err)
-	}
-
-	apiConfig := `project_code: test
-app: api
-version: 3.0.0`
-	err = os.WriteFile(filepath.Join(apiDir, "config.yaml"), []byte(apiConfig), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create api config: %v", err)
-	}
+	// Create test directory structure
+	tempDir, childDir, apiDir := setupTestConfigStructure(t)
 
 	tests := []struct {
 		name           string
@@ -186,35 +145,87 @@ version: 3.0.0`
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config, err := ReadConfigForFile(tt.configFile)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("ReadConfigForFile() expected error but got none")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("ReadConfigForFile() unexpected error: %v", err)
-				return
-			}
-
-			if config.Context != tt.expectedConfig.Context {
-				t.Errorf("Context = %v, want %v", config.Context, tt.expectedConfig.Context)
-			}
-			if config.ProjectCode != tt.expectedConfig.ProjectCode {
-				t.Errorf("ProjectCode = %v, want %v", config.ProjectCode, tt.expectedConfig.ProjectCode)
-			}
-			if config.Version != tt.expectedConfig.Version {
-				t.Errorf("Version = %v, want %v", config.Version, tt.expectedConfig.Version)
-			}
-			if config.Namespace != tt.expectedConfig.Namespace {
-				t.Errorf("Namespace = %v, want %v", config.Namespace, tt.expectedConfig.Namespace)
-			}
-			if config.App != tt.expectedConfig.App {
-				t.Errorf("App = %v, want %v", config.App, tt.expectedConfig.App)
-			}
+			validateConfigResult(t, config, err, tt.expectedConfig, tt.expectError)
 		})
+	}
+}
+
+// setupTestConfigStructure creates the test directory structure and config files
+func setupTestConfigStructure(t *testing.T) (string, string, string) {
+	tempDir := t.TempDir()
+
+	// Create base config
+	baseConfig := `context: base
+project_code: test
+version: 1.0.0
+namespace: default`
+	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create base config: %v", err)
+	}
+
+	// Create child config
+	childDir := filepath.Join(tempDir, "dev")
+	err = os.Mkdir(childDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create child directory: %v", err)
+	}
+
+	childConfig := `context: dev
+namespace: dev-namespace
+app: web
+version: 2.0.0`
+	err = os.WriteFile(filepath.Join(childDir, "config.yaml"), []byte(childConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create child config: %v", err)
+	}
+
+	// Create another child config in a subdirectory
+	apiDir := filepath.Join(childDir, "api")
+	err = os.Mkdir(apiDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create api directory: %v", err)
+	}
+
+	apiConfig := `project_code: test
+app: api
+version: 3.0.0`
+	err = os.WriteFile(filepath.Join(apiDir, "config.yaml"), []byte(apiConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create api config: %v", err)
+	}
+
+	return tempDir, childDir, apiDir
+}
+
+// validateConfigResult validates the result of ReadConfigForFile
+func validateConfigResult(t *testing.T, config *Config, err error, expectedConfig *Config, expectError bool) {
+	if expectError {
+		if err == nil {
+			t.Errorf("ReadConfigForFile() expected error but got none")
+		}
+		return
+	}
+
+	if err != nil {
+		t.Errorf("ReadConfigForFile() unexpected error: %v", err)
+		return
+	}
+
+	if config.Context != expectedConfig.Context {
+		t.Errorf("Context = %v, want %v", config.Context, expectedConfig.Context)
+	}
+	if config.ProjectCode != expectedConfig.ProjectCode {
+		t.Errorf("ProjectCode = %v, want %v", config.ProjectCode, expectedConfig.ProjectCode)
+	}
+	if config.Version != expectedConfig.Version {
+		t.Errorf("Version = %v, want %v", config.Version, expectedConfig.Version)
+	}
+	if config.Namespace != expectedConfig.Namespace {
+		t.Errorf("Namespace = %v, want %v", config.Namespace, expectedConfig.Namespace)
+	}
+	if config.App != expectedConfig.App {
+		t.Errorf("App = %v, want %v", config.App, expectedConfig.App)
 	}
 }
 

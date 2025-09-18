@@ -64,11 +64,7 @@ func (d *Deployer) statefulSetNeedsUpdate(existing, desired map[string]interface
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
 
-	if !d.templateEqual(existingTemplate, desiredTemplate) {
-		return true
-	}
-
-	return false
+	return !d.templateEqual(existingTemplate, desiredTemplate)
 }
 
 // daemonSetNeedsUpdate checks if a daemonset needs updating
@@ -77,11 +73,7 @@ func (d *Deployer) daemonSetNeedsUpdate(existing, desired map[string]interface{}
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
 
-	if !d.templateEqual(existingTemplate, desiredTemplate) {
-		return true
-	}
-
-	return false
+	return !d.templateEqual(existingTemplate, desiredTemplate)
 }
 
 // jobNeedsUpdate checks if a job needs updating
@@ -90,11 +82,7 @@ func (d *Deployer) jobNeedsUpdate(existing, desired map[string]interface{}) bool
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
 
-	if !d.templateEqual(existingTemplate, desiredTemplate) {
-		return true
-	}
-
-	return false
+	return !d.templateEqual(existingTemplate, desiredTemplate)
 }
 
 // templateEqual compares pod templates for equality
@@ -137,43 +125,71 @@ func (d *Deployer) containersEqual(existing, desired []interface{}) bool {
 	}
 
 	for i, existingContainer := range existing {
-		existingMap, ok := existingContainer.(map[string]interface{})
-		if !ok {
+		if !d.compareSingleContainer(existingContainer, desired[i]) {
 			return false
-		}
-
-		desiredMap, ok := desired[i].(map[string]interface{})
-		if !ok {
-			return false
-		}
-
-		// Compare container name
-		if !d.compareField(existingMap, desiredMap, "name") {
-			return false
-		}
-
-		// Compare image
-		if !d.compareField(existingMap, desiredMap, "image") {
-			return false
-		}
-
-		// Compare ports (handle default protocol)
-		existingPorts, _, _ := unstructured.NestedSlice(existingMap, "ports")
-		desiredPorts, _, _ := unstructured.NestedSlice(desiredMap, "ports")
-
-		if !d.comparePorts(existingPorts, desiredPorts) {
-			return false
-		}
-
-		// Compare other important fields
-		fieldsToCompare := []string{"command", "args", "workingDir", "env", "resources", "volumeMounts"}
-		for _, field := range fieldsToCompare {
-			if !d.compareField(existingMap, desiredMap, field) {
-				return false
-			}
 		}
 	}
 
+	return true
+}
+
+// compareSingleContainer compares a single container for equality
+func (d *Deployer) compareSingleContainer(existing, desired interface{}) bool {
+	existingMap, ok := existing.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	desiredMap, ok := desired.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	// Compare basic fields
+	if !d.compareContainerBasicFields(existingMap, desiredMap) {
+		return false
+	}
+
+	// Compare ports
+	if !d.compareContainerPorts(existingMap, desiredMap) {
+		return false
+	}
+
+	// Compare other important fields
+	return d.compareContainerOtherFields(existingMap, desiredMap)
+}
+
+// compareContainerBasicFields compares basic container fields
+func (d *Deployer) compareContainerBasicFields(existing, desired map[string]interface{}) bool {
+	// Compare container name
+	if !d.compareField(existing, desired, "name") {
+		return false
+	}
+
+	// Compare image
+	if !d.compareField(existing, desired, "image") {
+		return false
+	}
+
+	return true
+}
+
+// compareContainerPorts compares container ports
+func (d *Deployer) compareContainerPorts(existing, desired map[string]interface{}) bool {
+	existingPorts, _, _ := unstructured.NestedSlice(existing, "ports")
+	desiredPorts, _, _ := unstructured.NestedSlice(desired, "ports")
+
+	return d.comparePorts(existingPorts, desiredPorts)
+}
+
+// compareContainerOtherFields compares other important container fields
+func (d *Deployer) compareContainerOtherFields(existing, desired map[string]interface{}) bool {
+	fieldsToCompare := []string{"command", "args", "workingDir", "env", "resources", "volumeMounts"}
+	for _, field := range fieldsToCompare {
+		if !d.compareField(existing, desired, field) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -184,40 +200,60 @@ func (d *Deployer) comparePorts(existing, desired []interface{}) bool {
 	}
 
 	for i, existingPort := range existing {
-		existingMap, ok := existingPort.(map[string]interface{})
-		if !ok {
+		if !d.compareSinglePort(existingPort, desired[i]) {
 			return false
-		}
-
-		desiredMap, ok := desired[i].(map[string]interface{})
-		if !ok {
-			return false
-		}
-
-		// Handle default protocol - if not specified, assume TCP
-		existingProtocol := existingMap["protocol"]
-		desiredProtocol := desiredMap["protocol"]
-
-		if existingProtocol == nil {
-			existingProtocol = "TCP"
-		}
-		if desiredProtocol == nil {
-			desiredProtocol = "TCP"
-		}
-
-		if existingProtocol != desiredProtocol {
-			return false
-		}
-
-		// Compare other port fields
-		fieldsToCompare := []string{"containerPort", "name", "hostPort"}
-		for _, field := range fieldsToCompare {
-			if !d.compareField(existingMap, desiredMap, field) {
-				return false
-			}
 		}
 	}
 
+	return true
+}
+
+// compareSinglePort compares a single port for equality
+func (d *Deployer) compareSinglePort(existing, desired interface{}) bool {
+	existingMap, ok := existing.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	desiredMap, ok := desired.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	// Compare protocol (with default handling)
+	if !d.comparePortProtocol(existingMap, desiredMap) {
+		return false
+	}
+
+	// Compare other port fields
+	return d.comparePortOtherFields(existingMap, desiredMap)
+}
+
+// comparePortProtocol compares port protocol with default handling
+func (d *Deployer) comparePortProtocol(existing, desired map[string]interface{}) bool {
+	existingProtocol := d.getPortProtocol(existing)
+	desiredProtocol := d.getPortProtocol(desired)
+
+	return existingProtocol == desiredProtocol
+}
+
+// getPortProtocol gets the port protocol with default TCP handling
+func (d *Deployer) getPortProtocol(portMap map[string]interface{}) string {
+	protocol := portMap["protocol"]
+	if protocol == nil {
+		return "TCP"
+	}
+	return protocol.(string)
+}
+
+// comparePortOtherFields compares other port fields
+func (d *Deployer) comparePortOtherFields(existing, desired map[string]interface{}) bool {
+	fieldsToCompare := []string{"containerPort", "name", "hostPort"}
+	for _, field := range fieldsToCompare {
+		if !d.compareField(existing, desired, field) {
+			return false
+		}
+	}
 	return true
 }
 

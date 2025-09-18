@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -26,8 +27,24 @@ func NewDeployerForDelete(logger *slog.Logger) (*Deployer, error) {
 func (d *Deployer) DeleteAllManagedResources(stackFilter string) ([]DeleteResult, error) {
 	var results []DeleteResult
 
-	// List of resource types to check for frank-managed resources
-	resourceTypes := []struct {
+	resourceTypes := d.getResourceTypesToDelete()
+
+	for _, rt := range resourceTypes {
+		resourceResults := d.deleteResourcesOfType(rt, stackFilter)
+		results = append(results, resourceResults...)
+	}
+
+	return results, nil
+}
+
+// getResourceTypesToDelete returns the list of resource types to check for frank-managed resources
+func (d *Deployer) getResourceTypesToDelete() []struct {
+	Group    string
+	Version  string
+	Resource string
+	Kind     string
+} {
+	return []struct {
 		Group    string
 		Version  string
 		Resource string
@@ -44,69 +61,96 @@ func (d *Deployer) DeleteAllManagedResources(stackFilter string) ([]DeleteResult
 		{"batch", "v1", "cronjobs", "CronJob"},
 		{"networking.k8s.io", "v1", "ingresses", "Ingress"},
 	}
+}
 
-	for _, rt := range resourceTypes {
-		gvr := schema.GroupVersionResource{
-			Group:    rt.Group,
-			Version:  rt.Version,
-			Resource: rt.Resource,
-		}
+// deleteResourcesOfType deletes all frank-managed resources of a specific type
+func (d *Deployer) deleteResourcesOfType(rt struct {
+	Group    string
+	Version  string
+	Resource string
+	Kind     string
+}, stackFilter string) []DeleteResult {
+	var results []DeleteResult
 
-		// List resources across all namespaces
-		resourceList, err := d.dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			d.logger.Warn("Failed to list resources", "resource", rt.Resource, "error", err)
-			continue
-		}
+	gvr := schema.GroupVersionResource{
+		Group:    rt.Group,
+		Version:  rt.Version,
+		Resource: rt.Resource,
+	}
 
-		// Check each resource for frank annotation
-		for _, item := range resourceList.Items {
-			annotations := item.GetAnnotations()
-			if annotations == nil {
-				continue
-			}
+	// List resources across all namespaces
+	resourceList, err := d.dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		d.logger.Warn("Failed to list resources", "resource", rt.Resource, "error", err)
+		return results
+	}
 
-			stackName, hasStackAnnotation := annotations["frankthetank.cloud/stack-name"]
-			if !hasStackAnnotation {
-				continue
-			}
-
-			// Apply stack filter if provided
-			if stackFilter != "" && !d.matchesStackFilter(stackName, stackFilter) {
-				continue
-			}
-
-			// This is a frank-managed resource, delete it
-			namespace := item.GetNamespace()
-			name := item.GetName()
-
-			d.logger.Warn("Deleting frank-managed resource",
-				"stack", stackName,
-				"resource", rt.Kind,
-				"name", name,
-				"namespace", namespace)
-
-			err = d.dynamicClient.Resource(gvr).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
-
-			result := DeleteResult{
-				StackName:    stackName,
-				ResourceType: rt.Kind,
-				ResourceName: name,
-				Namespace:    namespace,
-				Error:        err,
-			}
-
-			if err != nil {
-				d.logger.Error("Failed to delete resource", "error", err)
-			} else {
-				d.logger.Info("Successfully deleted resource")
-			}
-
+	// Check each resource for frank annotation and delete if matches
+	for _, item := range resourceList.Items {
+		if d.shouldDeleteResource(item, stackFilter) {
+			result := d.deleteResource(item, rt, gvr)
 			results = append(results, result)
 		}
 	}
 
-	return results, nil
+	return results
+}
+
+// shouldDeleteResource checks if a resource should be deleted based on annotations and filter
+func (d *Deployer) shouldDeleteResource(item unstructured.Unstructured, stackFilter string) bool {
+	annotations := item.GetAnnotations()
+	if annotations == nil {
+		return false
+	}
+
+	stackName, hasStackAnnotation := annotations["frankthetank.cloud/stack-name"]
+	if !hasStackAnnotation {
+		return false
+	}
+
+	// Apply stack filter if provided
+	if stackFilter != "" && !d.matchesStackFilter(stackName, stackFilter) {
+		return false
+	}
+
+	return true
+}
+
+// deleteResource deletes a single resource and returns the result
+func (d *Deployer) deleteResource(item unstructured.Unstructured, rt struct {
+	Group    string
+	Version  string
+	Resource string
+	Kind     string
+}, gvr schema.GroupVersionResource) DeleteResult {
+	annotations := item.GetAnnotations()
+	stackName := annotations["frankthetank.cloud/stack-name"]
+	namespace := item.GetNamespace()
+	name := item.GetName()
+
+	d.logger.Warn("Deleting frank-managed resource",
+		"stack", stackName,
+		"resource", rt.Kind,
+		"name", name,
+		"namespace", namespace)
+
+	err := d.dynamicClient.Resource(gvr).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+
+	result := DeleteResult{
+		StackName:    stackName,
+		ResourceType: rt.Kind,
+		ResourceName: name,
+		Namespace:    namespace,
+		Error:        err,
+	}
+
+	if err != nil {
+		d.logger.Error("Failed to delete resource", "error", err)
+	} else {
+		d.logger.Info("Successfully deleted resource")
+	}
+
+	return result
 }
 
 // createKubernetesConfig creates a Kubernetes REST config
