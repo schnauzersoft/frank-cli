@@ -59,7 +59,7 @@ type DeployResult struct {
 }
 
 // DeployManifest applies a single manifest file to Kubernetes
-func (d *Deployer) DeployManifest(manifestPath string, timeout time.Duration) (*DeployResult, error) {
+func (d *Deployer) DeployManifest(manifestPath string, stackName string, timeout time.Duration) (*DeployResult, error) {
 	// Read the manifest file
 	manifestData, err := ioutil.ReadFile(manifestPath)
 	if err != nil {
@@ -85,7 +85,16 @@ func (d *Deployer) DeployManifest(manifestPath string, timeout time.Duration) (*
 		namespace = "default"
 	}
 
+	// Add stack name annotation
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations["frankthetank.cloud/stack-name"] = stackName
+	obj.SetAnnotations(annotations)
+
 	d.logger.Debug("Starting apply operation",
+		"stack", stackName,
 		"apiVersion", apiVersion,
 		"kind", kind,
 		"name", name,
@@ -105,17 +114,17 @@ func (d *Deployer) DeployManifest(manifestPath string, timeout time.Duration) (*
 
 	if err != nil {
 		// Resource doesn't exist, create it
-		d.logger.Warn("Resource does not exist, creating", "name", name, "namespace", namespace)
+		d.logger.Warn("Resource does not exist, creating", "stack", stackName, "name", name, "namespace", namespace)
 		result, err = d.dynamicClient.Resource(gvr).Namespace(namespace).Create(context.TODO(), &obj, metav1.CreateOptions{})
 		operation = "created"
 	} else {
 		// Resource exists, check if it needs applying
 		if d.needsUpdate(existing, &obj) {
-			d.logger.Warn("Updating existing resource", "name", name, "namespace", namespace)
+			d.logger.Warn("Updating existing resource", "stack", stackName, "name", name, "namespace", namespace)
 			result, err = d.dynamicClient.Resource(gvr).Namespace(namespace).Update(context.TODO(), &obj, metav1.UpdateOptions{})
 			operation = "applied"
 		} else {
-			d.logger.Info("Resource is already up to date", "name", name, "namespace", namespace)
+			d.logger.Info("Resource is already up to date", "stack", stackName, "name", name, "namespace", namespace)
 			result = existing
 			operation = "no-change"
 		}
@@ -132,9 +141,9 @@ func (d *Deployer) DeployManifest(manifestPath string, timeout time.Duration) (*
 	}
 
 	// Poll for completion if it's a deployment or similar workload
-	status, err := d.pollForCompletion(gvr, namespace, name, result, timeout)
+	status, err := d.pollForCompletion(gvr, namespace, name, stackName, result, timeout)
 	if err != nil {
-		d.logger.Warn("Error polling for completion", "error", err)
+		d.logger.Warn("Error polling for completion", "stack", stackName, "error", err)
 	}
 
 	return &DeployResult{
@@ -479,7 +488,7 @@ func (d *Deployer) mapsEqual(a, b map[string]interface{}) bool {
 }
 
 // pollForCompletion polls a resource until it reaches a stable state
-func (d *Deployer) pollForCompletion(gvr schema.GroupVersionResource, namespace, name string, obj *unstructured.Unstructured, timeout time.Duration) (string, error) {
+func (d *Deployer) pollForCompletion(gvr schema.GroupVersionResource, namespace, name, stackName string, obj *unstructured.Unstructured, timeout time.Duration) (string, error) {
 	kind := obj.GetKind()
 
 	// Only poll for certain resource types
@@ -487,7 +496,7 @@ func (d *Deployer) pollForCompletion(gvr schema.GroupVersionResource, namespace,
 		return "ready", nil
 	}
 
-	d.logger.Warn("Waiting for resource to be ready", "kind", kind, "name", name, "namespace", namespace, "timeout", timeout)
+	d.logger.Warn("Waiting for resource to be ready", "stack", stackName, "kind", kind, "name", name, "namespace", namespace, "timeout", timeout)
 
 	timeoutDuration := time.After(timeout)
 	ticker := time.NewTicker(2 * time.Second)
@@ -500,24 +509,24 @@ func (d *Deployer) pollForCompletion(gvr schema.GroupVersionResource, namespace,
 		case <-ticker.C:
 			resource, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
-				d.logger.Warn("Error getting resource during polling", "error", err)
+				d.logger.Warn("Error getting resource during polling", "stack", stackName, "error", err)
 				continue
 			}
 
 			status := d.getResourceStatus(resource, kind)
-
+			
 			if status == "Available" || status == "Ready" || status == "Complete" {
-				d.logger.Info("Resource is ready", "kind", kind, "name", name, "status", status)
+				d.logger.Info("Resource is ready", "stack", stackName, "kind", kind, "name", name, "status", status)
 				return status, nil
 			}
-
+			
 			if status == "Failed" || status == "ReplicaFailure" {
-				d.logger.Error("Resource failed", "kind", kind, "name", name, "status", status)
+				d.logger.Error("Resource failed", "stack", stackName, "kind", kind, "name", name, "status", status)
 				return status, fmt.Errorf("resource %s/%s failed with status: %s", kind, name, status)
 			}
-
+			
 			// Only log if status is still progressing
-			d.logger.Warn("Waiting for resource to be ready", "kind", kind, "name", name, "status", status)
+			d.logger.Warn("Waiting for resource to be ready", "stack", stackName, "kind", kind, "name", name, "status", status)
 		}
 	}
 }

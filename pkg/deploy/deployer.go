@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"frank/pkg/kubernetes"
+	"frank/pkg/stack"
 
 	"gopkg.in/yaml.v3"
 	k8sclient "k8s.io/client-go/kubernetes"
@@ -22,10 +23,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// Config represents the base configuration structure (context only)
-type Config struct {
-	Context string `yaml:"context"`
-}
 
 // ManifestConfig represents manifest-specific configuration
 type ManifestConfig struct {
@@ -36,6 +33,7 @@ type ManifestConfig struct {
 // DeploymentResult represents the result of a deployment operation
 type DeploymentResult struct {
 	Context   string
+	StackName string
 	Manifest  string
 	Response  string
 	Error     error
@@ -141,6 +139,7 @@ func (d *Deployer) findAllConfigFiles() ([]string, error) {
 	return configFiles, err
 }
 
+
 // deploySingleConfig deploys a single config file
 func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	timestamp := time.Now()
@@ -151,6 +150,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		d.logger.Debug("Failed to read manifest config", "config_file", configPath, "error", err)
 		return DeploymentResult{
 			Context:   "unknown",
+			StackName: "unknown",
 			Manifest:  filepath.Base(configPath),
 			Response:  "",
 			Error:     fmt.Errorf("error reading config: %v", err),
@@ -160,29 +160,31 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 
 	d.logger.Debug("Read manifest config", "config_file", configPath, "manifest", manifestConfig.Manifest)
 
-	// Read base config to get context
-	baseConfig, err := d.readBaseConfig()
+	// Get stack information
+	stackInfo, err := stack.GetStackInfo(configPath)
 	if err != nil {
-		d.logger.Debug("Failed to read base config", "error", err)
+		d.logger.Debug("Failed to get stack info", "error", err)
 		return DeploymentResult{
 			Context:   "unknown",
+			StackName: stack.GenerateFallbackStackName(configPath),
 			Manifest:  manifestConfig.Manifest,
 			Response:  "",
-			Error:     fmt.Errorf("error reading base config: %v", err),
+			Error:     fmt.Errorf("error getting stack info: %v", err),
 			Timestamp: timestamp,
 		}
 	}
 
-	d.logger.Debug("Read base config", "context", baseConfig.Context)
+	d.logger.Debug("Generated stack info", "stack_name", stackInfo.Name, "context", stackInfo.Context, "project_code", stackInfo.ProjectCode)
 
-	d.logger.Debug("Using Kubernetes client", "context", baseConfig.Context)
+	d.logger.Debug("Using Kubernetes client", "context", stackInfo.Context)
 
 	// Find the manifest file
 	manifestPath, err := d.findManifestFile(manifestConfig.Manifest)
 	if err != nil {
 		d.logger.Debug("Failed to find manifest file", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
-			Context:   baseConfig.Context,
+			Context:   stackInfo.Context,
+			StackName: stackInfo.Name,
 			Manifest:  manifestConfig.Manifest,
 			Response:  "",
 			Error:     fmt.Errorf("error finding manifest file: %v", err),
@@ -197,11 +199,12 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	}
 
 	// Apply the manifest using the real Kubernetes deployer
-	result, err := d.k8sDeployer.DeployManifest(manifestPath, timeout)
+	result, err := d.k8sDeployer.DeployManifest(manifestPath, stackInfo.Name, timeout)
 	if err != nil {
 		d.logger.Debug("Failed to apply manifest", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
-			Context:   baseConfig.Context,
+			Context:   stackInfo.Context,
+			StackName: stackInfo.Name,
 			Manifest:  manifestConfig.Manifest,
 			Response:  "",
 			Error:     fmt.Errorf("error applying manifest: %v", err),
@@ -226,7 +229,8 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	d.logger.Debug("Apply completed", "manifest", manifestConfig.Manifest, "response", response)
 
 	return DeploymentResult{
-		Context:   baseConfig.Context,
+		Context:   stackInfo.Context,
+		StackName: stackInfo.Name,
 		Manifest:  manifestConfig.Manifest,
 		Response:  response,
 		Error:     nil,
@@ -234,26 +238,6 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	}
 }
 
-// readBaseConfig reads the context configuration
-func (d *Deployer) readBaseConfig() (*Config, error) {
-	configPath := filepath.Join(d.configDir, "config.yaml")
-	data, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var config Config
-	err = yaml.Unmarshal(data, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	if config.Context == "" {
-		return nil, fmt.Errorf("context not specified in config file %s", configPath)
-	}
-
-	return &config, nil
-}
 
 // readManifestConfig reads a manifest config file
 func (d *Deployer) readManifestConfig(configPath string) (*ManifestConfig, error) {

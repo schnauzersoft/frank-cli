@@ -62,12 +62,14 @@ manifest: example-deployment.yaml`,
 		for _, result := range results {
 			if result.Error != nil {
 				logger.Error("Apply failed",
+					"stack", result.StackName,
 					"context", result.Context,
 					"manifest", result.Manifest,
 					"error", result.Error,
 					"timestamp", result.Timestamp)
 			} else {
 				logger.Info("Apply successful",
+					"stack", result.StackName,
 					"context", result.Context,
 					"manifest", result.Manifest,
 					"response", result.Response,
