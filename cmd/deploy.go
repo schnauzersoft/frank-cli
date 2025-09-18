@@ -6,13 +6,11 @@ package cmd
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
 	"frank/pkg/deploy"
 
-	"github.com/lmittmann/tint"
 	"github.com/spf13/cobra"
 )
 
@@ -35,10 +33,8 @@ Any .yaml or .yml files in the config directory (except config.yaml) will be rea
 as manifest config files and should contain:
 manifest: sample-deployment.yaml`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Set up colored structured logging
-		logger := slog.New(tint.NewHandler(os.Stdout, &tint.Options{
-			Level: slog.LevelDebug,
-		}))
+		// Get the global logger (configuration is already loaded in root command)
+		logger := GetLogger()
 
 		// Find the config directory
 		configDir, err := findConfigDirectory()

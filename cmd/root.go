@@ -5,9 +5,20 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package cmd
 
 import (
+	"fmt"
+	"log/slog"
 	"os"
 
+	"frank/pkg/config"
+
+	"github.com/lmittmann/tint"
 	"github.com/spf13/cobra"
+)
+
+// Global configuration and logger
+var (
+	appConfig *config.Config
+	logger    *slog.Logger
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -19,11 +30,34 @@ var rootCmd = &cobra.Command{
 It reads configuration from config/config.yaml and deploys manifests from the manifests/ directory
 to the specified Kubernetes cluster using the context name provided in the configuration.
 
+Configuration can be set via:
+- Environment variables (FRANK_LOG_LEVEL)
+- .frank.yaml (current directory)
+- $HOME/.frank/config.yaml
+- /etc/frank/config.yaml
+
 Example usage:
   frank deploy    # Deploy manifests using config/config.yaml`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Load application configuration
+		var err error
+		appConfig, err = config.LoadConfig()
+		if err != nil {
+			fmt.Printf("Failed to load configuration: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Set up colored structured logging with configured log level
+		logger = slog.New(tint.NewHandler(os.Stdout, &tint.Options{
+			Level: appConfig.GetLogLevel(),
+		}))
+
+		// Log configuration sources for debugging
+		sources := config.GetConfigSources()
+		if len(sources) > 0 {
+			logger.Debug("Configuration loaded from", "sources", sources, "log_level", appConfig.LogLevel)
+		}
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -33,6 +67,16 @@ func Execute() {
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+// GetConfig returns the global application configuration
+func GetConfig() *config.Config {
+	return appConfig
+}
+
+// GetLogger returns the global logger
+func GetLogger() *slog.Logger {
+	return logger
 }
 
 func init() {
