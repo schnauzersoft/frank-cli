@@ -16,6 +16,7 @@ import (
 
 	"frank/pkg/kubernetes"
 	"frank/pkg/stack"
+	"frank/pkg/template"
 
 	"gopkg.in/yaml.v3"
 	k8sclient "k8s.io/client-go/kubernetes"
@@ -41,9 +42,10 @@ type DeploymentResult struct {
 
 // Deployer handles parallel application operations
 type Deployer struct {
-	configDir   string
-	logger      *slog.Logger
-	k8sDeployer *kubernetes.Deployer
+	configDir      string
+	logger         *slog.Logger
+	k8sDeployer    *kubernetes.Deployer
+	templateRenderer *template.Renderer
 }
 
 // NewDeployer creates a new Deployer instance
@@ -61,9 +63,10 @@ func NewDeployer(configDir string, logger *slog.Logger) (*Deployer, error) {
 	}
 
 	return &Deployer{
-		configDir:   configDir,
-		logger:      logger,
-		k8sDeployer: k8sDeployer,
+		configDir:        configDir,
+		logger:           logger,
+		k8sDeployer:      k8sDeployer,
+		templateRenderer: template.NewRenderer(logger),
 	}, nil
 }
 
@@ -134,9 +137,10 @@ func (d *Deployer) findAllConfigFiles() ([]string, error) {
 			return nil
 		}
 
-		// Check if it's a YAML file (but not config.yaml)
-		if (strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml")) &&
-			info.Name() != "config.yaml" && info.Name() != "config.yml" {
+		// Check if it's a YAML file (but not config.yaml) or a Jinja template
+		if ((strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml")) &&
+			info.Name() != "config.yaml" && info.Name() != "config.yml") ||
+			(strings.HasSuffix(info.Name(), ".jinja") || strings.HasSuffix(info.Name(), ".j2")) {
 			configFiles = append(configFiles, path)
 		}
 
@@ -248,6 +252,64 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		}
 	}
 
+	// Check if this is a template file and render it
+	finalManifestPath := manifestPath
+	if d.templateRenderer.IsTemplateFile(manifestPath) {
+		d.logger.Debug("Rendering template", "template", manifestPath)
+		
+		// Build template context
+		templateContext := d.templateRenderer.BuildTemplateContext(
+			stackInfo.Name,
+			stackInfo.Context,
+			stackInfo.ProjectCode,
+			stackInfo.Namespace,
+		)
+
+		// Render the template to a temporary file
+		renderedContent, err := d.templateRenderer.RenderManifest(manifestPath, templateContext)
+		if err != nil {
+			d.logger.Debug("Failed to render template", "template", manifestPath, "error", err)
+			return DeploymentResult{
+				Context:   stackInfo.Context,
+				StackName: stackInfo.Name,
+				Manifest:  manifestConfig.Manifest,
+				Response:  "",
+				Error:     fmt.Errorf("error rendering template: %v", err),
+				Timestamp: timestamp,
+			}
+		}
+
+		// Create a temporary file for the rendered content
+		tempFile, err := os.CreateTemp("", "frank-rendered-*.yaml")
+		if err != nil {
+			return DeploymentResult{
+				Context:   stackInfo.Context,
+				StackName: stackInfo.Name,
+				Manifest:  manifestConfig.Manifest,
+				Response:  "",
+				Error:     fmt.Errorf("error creating temp file: %v", err),
+				Timestamp: timestamp,
+			}
+		}
+		defer os.Remove(tempFile.Name()) // Clean up temp file
+
+		if _, err := tempFile.Write(renderedContent); err != nil {
+			tempFile.Close()
+			return DeploymentResult{
+				Context:   stackInfo.Context,
+				StackName: stackInfo.Name,
+				Manifest:  manifestConfig.Manifest,
+				Response:  "",
+				Error:     fmt.Errorf("error writing rendered content: %v", err),
+				Timestamp: timestamp,
+			}
+		}
+		tempFile.Close()
+
+		finalManifestPath = tempFile.Name()
+		d.logger.Debug("Template rendered successfully", "template", manifestPath, "rendered", finalManifestPath)
+	}
+
 	// Set default timeout if not specified
 	timeout := manifestConfig.Timeout
 	if timeout == 0 {
@@ -256,7 +318,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 
 	// Validate namespace configuration
 	d.logger.Debug("Validating namespace", "config_namespace", stackInfo.Namespace, "manifest", manifestConfig.Manifest)
-	if err := d.validateNamespaceConfiguration(manifestPath, stackInfo.Namespace); err != nil {
+	if err := d.validateNamespaceConfiguration(finalManifestPath, stackInfo.Namespace); err != nil {
 		d.logger.Error("Namespace validation failed", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
 			Context:   stackInfo.Context,
@@ -269,7 +331,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	}
 
 	// Apply the manifest using the real Kubernetes deployer
-	result, err := d.k8sDeployer.DeployManifest(manifestPath, stackInfo.Name, stackInfo.Namespace, timeout)
+	result, err := d.k8sDeployer.DeployManifest(finalManifestPath, stackInfo.Name, stackInfo.Namespace, timeout)
 	if err != nil {
 		d.logger.Debug("Failed to apply manifest", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
@@ -372,14 +434,23 @@ func (d *Deployer) findManifestFile(manifestName string) (string, error) {
 	projectRoot := filepath.Dir(d.configDir)
 	manifestsDir := filepath.Join(projectRoot, "manifests")
 
-	// First check if the manifest exists directly in the manifests directory
-	manifestPath := filepath.Join(manifestsDir, manifestName)
-	if _, err := os.Stat(manifestPath); err == nil {
-		return manifestPath, nil
-	}
+		// First check if the manifest exists directly in the manifests directory
+		manifestPath := filepath.Join(manifestsDir, manifestName)
+		if _, err := os.Stat(manifestPath); err == nil {
+			return manifestPath, nil
+		}
 
-	// If not found, search in subdirectories
-	return d.findManifestInSubdirectories(manifestsDir, manifestName)
+		// Check for Jinja template versions
+		jinjaExtensions := []string{".jinja", ".j2"}
+		for _, ext := range jinjaExtensions {
+			jinjaPath := strings.TrimSuffix(manifestPath, filepath.Ext(manifestPath)) + ext
+			if _, err := os.Stat(jinjaPath); err == nil {
+				return jinjaPath, nil
+			}
+		}
+
+		// If not found, search in subdirectories
+		return d.findManifestInSubdirectories(manifestsDir, manifestName)
 }
 
 // findManifestInSubdirectories recursively searches for a manifest file in subdirectories
@@ -397,6 +468,15 @@ func (d *Deployer) findManifestInSubdirectories(dir, manifestName string) (strin
 
 			if _, err := os.Stat(manifestPath); err == nil {
 				return manifestPath, nil
+			}
+
+			// Check for Jinja template versions
+			jinjaExtensions := []string{".jinja", ".j2"}
+			for _, ext := range jinjaExtensions {
+				jinjaPath := strings.TrimSuffix(manifestPath, filepath.Ext(manifestPath)) + ext
+				if _, err := os.Stat(jinjaPath); err == nil {
+					return jinjaPath, nil
+				}
 			}
 
 			// Recursively search in deeper subdirectories
