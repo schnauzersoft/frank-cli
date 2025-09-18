@@ -5,7 +5,6 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package deploy
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log/slog"
@@ -15,10 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"frank/pkg/kubernetes"
+
 	"gopkg.in/yaml.v3"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/kubernetes"
+	k8sclient "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -29,7 +29,8 @@ type Config struct {
 
 // ManifestConfig represents manifest-specific configuration
 type ManifestConfig struct {
-	Manifest string `yaml:"manifest"`
+	Manifest string        `yaml:"manifest"`
+	Timeout  time.Duration `yaml:"timeout"`
 }
 
 // DeploymentResult represents the result of a deployment operation
@@ -41,21 +42,35 @@ type DeploymentResult struct {
 	Timestamp time.Time
 }
 
-// Deployer handles parallel deployment operations
+// Deployer handles parallel application operations
 type Deployer struct {
-	configDir string
-	logger    *slog.Logger
+	configDir   string
+	logger      *slog.Logger
+	k8sDeployer *kubernetes.Deployer
 }
 
 // NewDeployer creates a new Deployer instance
-func NewDeployer(configDir string, logger *slog.Logger) *Deployer {
-	return &Deployer{
-		configDir: configDir,
-		logger:    logger,
+func NewDeployer(configDir string, logger *slog.Logger) (*Deployer, error) {
+	// Create Kubernetes client configuration
+	config, err := createKubernetesConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes config: %v", err)
 	}
+
+	// Create Kubernetes deployer
+	k8sDeployer, err := kubernetes.NewDeployer(config, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes deployer: %v", err)
+	}
+
+	return &Deployer{
+		configDir:   configDir,
+		logger:      logger,
+		k8sDeployer: k8sDeployer,
+	}, nil
 }
 
-// DeployAll performs parallel deployment of all manifest configs
+// DeployAll performs parallel application of all manifest configs
 func (d *Deployer) DeployAll() ([]DeploymentResult, error) {
 	// Find all YAML config files
 	configFiles, err := d.findAllConfigFiles()
@@ -73,18 +88,18 @@ func (d *Deployer) DeployAll() ([]DeploymentResult, error) {
 	results := make(chan DeploymentResult, len(configFiles))
 	var wg sync.WaitGroup
 
-	// Deploy each config file in parallel
+	// Apply each config file in parallel
 	for _, configFile := range configFiles {
 		wg.Add(1)
 		go func(file string) {
 			defer wg.Done()
-			d.logger.Debug("Starting deployment", "config_file", file)
+			d.logger.Debug("Starting apply", "config_file", file)
 			result := d.deploySingleConfig(file)
 			results <- result
 		}(configFile)
 	}
 
-	// Wait for all deployments to complete
+	// Wait for all applies to complete
 	go func() {
 		wg.Wait()
 		close(results)
@@ -96,7 +111,7 @@ func (d *Deployer) DeployAll() ([]DeploymentResult, error) {
 		deploymentResults = append(deploymentResults, result)
 	}
 
-	d.logger.Debug("All deployments completed", "total", len(deploymentResults))
+	d.logger.Debug("All applies completed", "total", len(deploymentResults))
 	return deploymentResults, nil
 }
 
@@ -160,35 +175,55 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 
 	d.logger.Debug("Read base config", "context", baseConfig.Context)
 
-	// Create Kubernetes client
-	client, err := d.createKubernetesClient(baseConfig.Context)
+	d.logger.Debug("Using Kubernetes client", "context", baseConfig.Context)
+
+	// Find the manifest file
+	manifestPath, err := d.findManifestFile(manifestConfig.Manifest)
 	if err != nil {
-		d.logger.Debug("Failed to create Kubernetes client", "context", baseConfig.Context, "error", err)
+		d.logger.Debug("Failed to find manifest file", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
 			Context:   baseConfig.Context,
 			Manifest:  manifestConfig.Manifest,
 			Response:  "",
-			Error:     fmt.Errorf("error creating k8s client: %v", err),
+			Error:     fmt.Errorf("error finding manifest file: %v", err),
 			Timestamp: timestamp,
 		}
 	}
 
-	d.logger.Debug("Created Kubernetes client", "context", baseConfig.Context)
+	// Set default timeout if not specified
+	timeout := manifestConfig.Timeout
+	if timeout == 0 {
+		timeout = 10 * time.Minute // Default 10 minutes
+	}
 
-	// Deploy the manifest
-	response, err := d.deployManifest(client, manifestConfig.Manifest)
+	// Apply the manifest using the real Kubernetes deployer
+	result, err := d.k8sDeployer.DeployManifest(manifestPath, timeout)
 	if err != nil {
-		d.logger.Debug("Failed to deploy manifest", "manifest", manifestConfig.Manifest, "error", err)
+		d.logger.Debug("Failed to apply manifest", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
 			Context:   baseConfig.Context,
 			Manifest:  manifestConfig.Manifest,
 			Response:  "",
-			Error:     fmt.Errorf("error deploying manifest: %v", err),
+			Error:     fmt.Errorf("error applying manifest: %v", err),
 			Timestamp: timestamp,
 		}
 	}
 
-	d.logger.Debug("Successfully deployed manifest", "manifest", manifestConfig.Manifest, "response", response)
+	// Format response based on the result
+	var response string
+	if result.Error != nil {
+		response = fmt.Sprintf("Apply failed: %v", result.Error)
+	} else {
+		response = fmt.Sprintf("Applied %s/%s: %s in namespace %s (operation: %s, status: %s)",
+			result.Resource.GetAPIVersion(),
+			result.Resource.GetKind(),
+			result.Resource.GetName(),
+			result.Resource.GetNamespace(),
+			result.Operation,
+			result.Status)
+	}
+
+	d.logger.Debug("Apply completed", "manifest", manifestConfig.Manifest, "response", response)
 
 	return DeploymentResult{
 		Context:   baseConfig.Context,
@@ -240,8 +275,23 @@ func (d *Deployer) readManifestConfig(configPath string) (*ManifestConfig, error
 	return &config, nil
 }
 
+// createKubernetesConfig creates a Kubernetes REST config
+func createKubernetesConfig() (*rest.Config, error) {
+	// Load kubeconfig from default location
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	configOverrides := &clientcmd.ConfigOverrides{}
+
+	// Build config from kubeconfig
+	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides).ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
 // createKubernetesClient creates a Kubernetes client using the specified context
-func (d *Deployer) createKubernetesClient(contextName string) (kubernetes.Interface, error) {
+func (d *Deployer) createKubernetesClient(contextName string) (k8sclient.Interface, error) {
 	// Load kubeconfig from default location
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{
@@ -255,7 +305,7 @@ func (d *Deployer) createKubernetesClient(contextName string) (kubernetes.Interf
 	}
 
 	// Create the clientset
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := k8sclient.NewForConfig(config)
 	if err != nil {
 		return nil, err
 	}
@@ -263,51 +313,10 @@ func (d *Deployer) createKubernetesClient(contextName string) (kubernetes.Interf
 	return clientset, nil
 }
 
-// deployManifest reads and deploys a Kubernetes manifest
-func (d *Deployer) deployManifest(client kubernetes.Interface, manifestName string) (string, error) {
+// findManifestFile searches for a manifest file in the manifests directory and its subdirectories
+func (d *Deployer) findManifestFile(manifestName string) (string, error) {
 	// Find the project root (where manifests directory is located)
 	projectRoot := filepath.Dir(d.configDir)
-
-	// Find the manifest file in the manifests directory and its subdirectories
-	manifestPath, err := d.findManifestFile(projectRoot, manifestName)
-	if err != nil {
-		return "", err
-	}
-
-	// Read the manifest file
-	manifestData, err := ioutil.ReadFile(manifestPath)
-	if err != nil {
-		return "", fmt.Errorf("error reading manifest file: %v", err)
-	}
-
-	// Parse the YAML content
-	decoder := k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifestData), 4096)
-
-	var obj unstructured.Unstructured
-	err = decoder.Decode(&obj)
-	if err != nil {
-		return "", fmt.Errorf("error parsing YAML: %v", err)
-	}
-
-	// Get the resource information
-	apiVersion := obj.GetAPIVersion()
-	kind := obj.GetKind()
-	name := obj.GetName()
-	namespace := obj.GetNamespace()
-
-	if namespace == "" {
-		namespace = "default"
-	}
-
-	// For now, we'll just return the resource details as a response
-	// In a full implementation, you would use the dynamic client to create the resource
-	response := fmt.Sprintf("Deployed %s/%s: %s in namespace %s", apiVersion, kind, name, namespace)
-
-	return response, nil
-}
-
-// findManifestFile searches for a manifest file in the manifests directory and its subdirectories
-func (d *Deployer) findManifestFile(projectRoot, manifestName string) (string, error) {
 	manifestsDir := filepath.Join(projectRoot, "manifests")
 
 	// First check if the manifest exists directly in the manifests directory

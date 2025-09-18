@@ -24,20 +24,20 @@ var (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "frank",
-	Short: "A CLI tool for deploying Jinja templated Kubernetes manifest files",
-	Long: `Frank is a CLI application for deploying Jinja templated Kubernetes manifest files to clusters.
+	Short: "A CLI tool for applying templated Kubernetes manifest files",
+	Long: `Frank is a CLI application for applying templated Kubernetes manifest files to clusters.
 
-It reads configuration from config/config.yaml and deploys manifests from the manifests/ directory
+It reads configuration from config/ and applies manifests from the manifests/ directory
 to the specified Kubernetes cluster using the context name provided in the configuration.
 
-Configuration can be set via:
+Configuration for the CLI itself can be set via:
 - Environment variables (FRANK_LOG_LEVEL)
 - .frank.yaml (current directory)
 - $HOME/.frank/config.yaml
 - /etc/frank/config.yaml
 
 Example usage:
-  frank deploy    # Deploy manifests using config/config.yaml`,
+  frank apply     # Apply manifests using config/`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Load application configuration
 		var err error

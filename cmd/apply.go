@@ -19,19 +19,19 @@ type Config struct {
 	Context string `yaml:"context"`
 }
 
-// deployCmd represents the deploy command
-var deployCmd = &cobra.Command{
-	Use:   "deploy",
-	Short: "Deploy Jinja templated Kubernetes manifest files to clusters",
-	Long: `Deploy command reads configuration from the config directory and deploys
+// applyCmd represents the apply command
+var applyCmd = &cobra.Command{
+	Use:   "apply",
+	Short: "Apply templated Kubernetes manifest files to clusters",
+	Long: `Apply command reads configuration from the config directory and applies
 the specified manifest to the Kubernetes cluster.
 
 The config/config.yaml file should contain:
-context: orbstack
+context: <Kubernetes context>
 
 Any .yaml or .yml files in the config directory (except config.yaml) will be read
 as manifest config files and should contain:
-manifest: sample-deployment.yaml`,
+manifest: example-deployment.yaml`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get the global logger (configuration is already loaded in root command)
 		logger := GetLogger()
@@ -45,24 +45,29 @@ manifest: sample-deployment.yaml`,
 
 		logger.Debug("Found config directory", "path", configDir)
 
-		// Create deployer and run parallel deployments
-		deployer := deploy.NewDeployer(configDir, logger)
+		// Create deployer and run parallel applies
+		deployer, err := deploy.NewDeployer(configDir, logger)
+		if err != nil {
+			logger.Error("Failed to create deployer", "error", err)
+			os.Exit(1)
+		}
+
 		results, err := deployer.DeployAll()
 		if err != nil {
-			logger.Error("Deployment failed", "error", err)
+			logger.Error("Apply failed", "error", err)
 			os.Exit(1)
 		}
 
 		// Log results with appropriate log levels
 		for _, result := range results {
 			if result.Error != nil {
-				logger.Error("Deployment failed",
+				logger.Error("Apply failed",
 					"context", result.Context,
 					"manifest", result.Manifest,
 					"error", result.Error,
 					"timestamp", result.Timestamp)
 			} else {
-				logger.Info("Deployment successful",
+				logger.Info("Apply successful",
 					"context", result.Context,
 					"manifest", result.Manifest,
 					"response", result.Response,
@@ -73,7 +78,7 @@ manifest: sample-deployment.yaml`,
 }
 
 func init() {
-	rootCmd.AddCommand(deployCmd)
+	rootCmd.AddCommand(applyCmd)
 }
 
 // findConfigDirectory finds the config directory by walking up the directory tree
