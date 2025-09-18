@@ -234,7 +234,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		}
 	}
 
-	d.logger.Debug("Generated stack info", "stack_name", stackInfo.Name, "context", stackInfo.Context, "project_code", stackInfo.ProjectCode, "namespace", stackInfo.Namespace)
+		d.logger.Debug("Generated stack info", "stack_name", stackInfo.Name, "context", stackInfo.Context, "project_code", stackInfo.ProjectCode, "namespace", stackInfo.Namespace, "app", stackInfo.App, "version", stackInfo.Version)
 
 	d.logger.Debug("Using Kubernetes client", "context", stackInfo.Context)
 
@@ -263,6 +263,8 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 			stackInfo.Context,
 			stackInfo.ProjectCode,
 			stackInfo.Namespace,
+			stackInfo.App,
+			stackInfo.Version,
 		)
 
 		// Render the template to a temporary file

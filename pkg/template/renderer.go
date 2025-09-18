@@ -96,12 +96,14 @@ func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]in
 }
 
 // BuildTemplateContext builds the template context from stack info and config
-func (r *Renderer) BuildTemplateContext(stackName, context, projectCode, namespace string) map[string]interface{} {
+func (r *Renderer) BuildTemplateContext(stackName, context, projectCode, namespace, app, version string) map[string]interface{} {
 	templateContext := map[string]interface{}{
 		"stack_name":   stackName,
 		"context":      context,
 		"project_code": projectCode,
 		"namespace":    namespace,
+		"app":          app,
+		"version":      version,
 	}
 
 	// Add common Kubernetes context

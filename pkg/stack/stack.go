@@ -18,6 +18,8 @@ type Config struct {
 	Context     string `yaml:"context"`
 	ProjectCode string `yaml:"project_code"`
 	Namespace   string `yaml:"namespace"`
+	App         string `yaml:"app"`
+	Version     string `yaml:"version"`
 }
 
 // StackInfo represents information about a stack
@@ -26,6 +28,8 @@ type StackInfo struct {
 	Context     string
 	ProjectCode string
 	Namespace   string
+	App         string
+	Version     string
 	ConfigPath  string
 }
 
@@ -104,6 +108,18 @@ func ReadConfigForFile(configFilePath string) (*Config, error) {
 	return config, nil
 }
 
+// extractAppNameFromFilename extracts the app name from a config file path
+func extractAppNameFromFilename(configFilePath string) string {
+	// Get the file name without extension
+	fileName := filepath.Base(configFilePath)
+	fileName = strings.TrimSuffix(fileName, ".yaml")
+	fileName = strings.TrimSuffix(fileName, ".yml")
+	fileName = strings.TrimSuffix(fileName, ".jinja")
+	fileName = strings.TrimSuffix(fileName, ".j2")
+	
+	return fileName
+}
+
 // GetStackInfo extracts stack information from a config file path
 func GetStackInfo(configFilePath string) (*StackInfo, error) {
 	config, err := ReadConfigForFile(configFilePath)
@@ -114,17 +130,27 @@ func GetStackInfo(configFilePath string) (*StackInfo, error) {
 			Context:     "unknown",
 			ProjectCode: "unknown",
 			Namespace:   "",
+			App:         extractAppNameFromFilename(configFilePath),
+			Version:     "",
 			ConfigPath:  configFilePath,
 		}, nil
 	}
 
 	stackName := GenerateStackName(config.ProjectCode, config.Context, configFilePath)
 	
+	// Extract app name from filename if not specified in config
+	appName := config.App
+	if appName == "" {
+		appName = extractAppNameFromFilename(configFilePath)
+	}
+
 	return &StackInfo{
 		Name:        stackName,
 		Context:     config.Context,
 		ProjectCode: config.ProjectCode,
 		Namespace:   config.Namespace,
+		App:         appName,
+		Version:     config.Version,
 		ConfigPath:  configFilePath,
 	}, nil
 }
