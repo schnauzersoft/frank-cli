@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,22 +34,24 @@ type ManifestConfig struct {
 
 // DeploymentResult represents the result of a deployment operation
 type DeploymentResult struct {
-	Context    string
-	Manifest   string
-	Response   string
-	Error      error
-	Timestamp  time.Time
+	Context   string
+	Manifest  string
+	Response  string
+	Error     error
+	Timestamp time.Time
 }
 
 // Deployer handles parallel deployment operations
 type Deployer struct {
 	configDir string
+	logger    *slog.Logger
 }
 
 // NewDeployer creates a new Deployer instance
-func NewDeployer(configDir string) *Deployer {
+func NewDeployer(configDir string, logger *slog.Logger) *Deployer {
 	return &Deployer{
 		configDir: configDir,
+		logger:    logger,
 	}
 }
 
@@ -64,6 +67,8 @@ func (d *Deployer) DeployAll() ([]DeploymentResult, error) {
 		return nil, fmt.Errorf("no config files found")
 	}
 
+	d.logger.Debug("Found config files", "count", len(configFiles), "files", configFiles)
+
 	// Create channels for results and errors
 	results := make(chan DeploymentResult, len(configFiles))
 	var wg sync.WaitGroup
@@ -73,6 +78,7 @@ func (d *Deployer) DeployAll() ([]DeploymentResult, error) {
 		wg.Add(1)
 		go func(file string) {
 			defer wg.Done()
+			d.logger.Debug("Starting deployment", "config_file", file)
 			result := d.deploySingleConfig(file)
 			results <- result
 		}(configFile)
@@ -90,6 +96,7 @@ func (d *Deployer) DeployAll() ([]DeploymentResult, error) {
 		deploymentResults = append(deploymentResults, result)
 	}
 
+	d.logger.Debug("All deployments completed", "total", len(deploymentResults))
 	return deploymentResults, nil
 }
 
@@ -126,6 +133,7 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	// Read the manifest config
 	manifestConfig, err := d.readManifestConfig(configPath)
 	if err != nil {
+		d.logger.Debug("Failed to read manifest config", "config_file", configPath, "error", err)
 		return DeploymentResult{
 			Context:   "unknown",
 			Manifest:  filepath.Base(configPath),
@@ -135,9 +143,12 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		}
 	}
 
+	d.logger.Debug("Read manifest config", "config_file", configPath, "manifest", manifestConfig.Manifest)
+
 	// Read base config to get context
 	baseConfig, err := d.readBaseConfig()
 	if err != nil {
+		d.logger.Debug("Failed to read base config", "error", err)
 		return DeploymentResult{
 			Context:   "unknown",
 			Manifest:  manifestConfig.Manifest,
@@ -147,9 +158,12 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		}
 	}
 
+	d.logger.Debug("Read base config", "context", baseConfig.Context)
+
 	// Create Kubernetes client
 	client, err := d.createKubernetesClient(baseConfig.Context)
 	if err != nil {
+		d.logger.Debug("Failed to create Kubernetes client", "context", baseConfig.Context, "error", err)
 		return DeploymentResult{
 			Context:   baseConfig.Context,
 			Manifest:  manifestConfig.Manifest,
@@ -159,9 +173,12 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 		}
 	}
 
+	d.logger.Debug("Created Kubernetes client", "context", baseConfig.Context)
+
 	// Deploy the manifest
 	response, err := d.deployManifest(client, manifestConfig.Manifest)
 	if err != nil {
+		d.logger.Debug("Failed to deploy manifest", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
 			Context:   baseConfig.Context,
 			Manifest:  manifestConfig.Manifest,
@@ -170,6 +187,8 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 			Timestamp: timestamp,
 		}
 	}
+
+	d.logger.Debug("Successfully deployed manifest", "manifest", manifestConfig.Manifest, "response", response)
 
 	return DeploymentResult{
 		Context:   baseConfig.Context,

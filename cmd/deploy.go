@@ -6,11 +6,13 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"frank/pkg/deploy"
 
+	"github.com/lmittmann/tint"
 	"github.com/spf13/cobra"
 )
 
@@ -33,28 +35,42 @@ Any .yaml or .yml files in the config directory (except config.yaml) will be rea
 as manifest config files and should contain:
 manifest: sample-deployment.yaml`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Set up colored structured logging
+		logger := slog.New(tint.NewHandler(os.Stdout, &tint.Options{
+			Level: slog.LevelDebug,
+		}))
+
 		// Find the config directory
 		configDir, err := findConfigDirectory()
 		if err != nil {
-			fmt.Printf("Error finding config directory: %v\n", err)
+			logger.Error("Failed to find config directory", "error", err)
 			os.Exit(1)
 		}
+
+		logger.Debug("Found config directory", "path", configDir)
 
 		// Create deployer and run parallel deployments
-		deployer := deploy.NewDeployer(configDir)
+		deployer := deploy.NewDeployer(configDir, logger)
 		results, err := deployer.DeployAll()
 		if err != nil {
-			fmt.Printf("Error during deployment: %v\n", err)
+			logger.Error("Deployment failed", "error", err)
 			os.Exit(1)
 		}
 
-		// Print results in the simplified format: <date> - <context> - <response>
+		// Log results with appropriate log levels
 		for _, result := range results {
-			timestamp := result.Timestamp.Format("2006-01-02 15:04:05")
 			if result.Error != nil {
-				fmt.Printf("%s - %s - ERROR: %v\n", timestamp, result.Context, result.Error)
+				logger.Error("Deployment failed",
+					"context", result.Context,
+					"manifest", result.Manifest,
+					"error", result.Error,
+					"timestamp", result.Timestamp)
 			} else {
-				fmt.Printf("%s - %s - %s\n", timestamp, result.Context, result.Response)
+				logger.Info("Deployment successful",
+					"context", result.Context,
+					"manifest", result.Manifest,
+					"response", result.Response,
+					"timestamp", result.Timestamp)
 			}
 		}
 	},
