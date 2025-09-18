@@ -6,10 +6,10 @@ Frank is a CLI tool for applying templated Kubernetes manifest files to clusters
 
 ## Quick Start
 
-### 1. Installation
+### 1. Building
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/schnauzersoft/frank-cli
 cd frank-cli
 go build -o frank .
 ```
