@@ -89,6 +89,72 @@ frank apply dev
 - Waits patiently for deployments to be ready
 - Runs multiple deployments in parallel for speed
 
+### **Jinja Templating**
+Dynamic manifest generation with powerful templating:
+
+```yaml
+# manifests/app-deployment.jinja
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ stack_name }}
+  labels:
+    app.kubernetes.io/name: {{ app_name }}
+    app.kubernetes.io/version: {{ version }}
+    app.kubernetes.io/managed-by: frank
+spec:
+  replicas: {{ replicas | default(3) }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ app_name }}
+        app.kubernetes.io/version: {{ version }}
+    spec:
+      containers:
+      - name: {{ app_name }}
+        image: {{ image_name }}:{{ version }}
+        ports:
+        - containerPort: {{ port | default(80) }}
+```
+
+**Template Context Variables:**
+- `stack_name` - Generated stack name (e.g., `myapp-dev-web`)
+- `app_name` - App name from config or filename
+- `version` - Version from config
+- `project_code` - Project identifier
+- `context` - Kubernetes context
+- `namespace` - Target namespace
+- `k8s_namespace` - Alias for namespace
+
+**Multi-Document Support:**
+Templates can contain multiple Kubernetes resources separated by `---`:
+
+```yaml
+# manifests/full-stack.jinja
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ stack_name }}
+  labels:
+    app.kubernetes.io/name: {{ app_name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ stack_name }}-service
+  labels:
+    app.kubernetes.io/name: {{ app_name }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ app_name }}
+  ports:
+  - port: 80
+    targetPort: {{ port | default(80) }}
+```
+
 ### **Stack-Based Filtering**
 Target specific environments or applications:
 
@@ -159,6 +225,33 @@ namespace: myapp-namespace   # Optional: Default namespace
 ```yaml
 manifest: app-deployment.yaml  # Required: Manifest file name
 timeout: 10m                   # Optional: Deployment timeout (default: 10m)
+app: myapp                     # Optional: App name (defaults to filename)
+version: 1.2.3                 # Optional: Version for templates
+```
+
+### Template Files
+
+Frank supports Jinja templating for dynamic manifest generation:
+
+**Supported Extensions:**
+- `.jinja` - Jinja template files
+- `.j2` - Alternative Jinja extension
+
+**Example:**
+```yaml
+# config/app.yaml
+manifest: app-deployment.jinja  # Points to template file
+app: myapp
+version: 1.2.3
+
+# manifests/app-deployment.jinja
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ stack_name }}
+  labels:
+    app.kubernetes.io/name: {{ app_name }}
+    app.kubernetes.io/version: {{ version }}
 ```
 
 ### Environment Variables
@@ -250,7 +343,8 @@ frank-cli/
 │   ├── config/               # Configuration management
 │   ├── deploy/               # Deployment orchestration
 │   ├── kubernetes/           # Kubernetes operations
-│   └── stack/                # Stack management
+│   ├── stack/                # Stack management
+│   └── template/             # Jinja templating engine
 ├── config/                   # Example configurations
 ├── manifests/                # Example manifests
 └── main.go                   # Application entry point
