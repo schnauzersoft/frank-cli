@@ -1,5 +1,8 @@
 # Frank CLI
 
+![Test](https://github.com/schnauzersoft/frank-cli/actions/workflows/test.yml/badge.svg)
+![Go Report Card](https://goreportcard.com/badge/github.com/gohugoio/hugo)](https://goreportcard.com/report/github.com/schnauzersoft/frank-cli)
+
 Simple multi-environment management of Kubernetes resources.
 
 Frank is a CLI tool for applying templated Kubernetes manifest files to clusters with intelligent configuration management, stack-based filtering.
