@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestIsTemplateFile(t *testing.T) {
@@ -526,7 +528,7 @@ func TestRenderHCLManifest(t *testing.T) {
 
 	// Create a simple HCL template
 	templateContent := `resource "kubernetes_deployment" "app" {
-  metadata {
+  metadata = {
     name = "${stack_name}"
     labels = {
       "app.kubernetes.io/name" = "${app}"
@@ -534,31 +536,36 @@ func TestRenderHCLManifest(t *testing.T) {
       "app.kubernetes.io/managed-by" = "frank"
     }
   }
-  
-  spec {
+
+  spec = {
     replicas = ${replicas}
     
-    selector {
-      match_labels = {
+    selector = {
+      matchLabels = {
         "app.kubernetes.io/name" = "${app}"
       }
     }
-    
-    template {
-      metadata {
+
+    template = {
+      metadata = {
         labels = {
           "app.kubernetes.io/name" = "${app}"
+          "app.kubernetes.io/version" = "${version}"
         }
       }
-      
-      spec {
-        container {
-          name  = "${app}"
-          image = "${image_name}:${version}"
-          port {
-            container_port = ${port}
+
+      spec = {
+        containers = [
+          {
+            name  = "${app}"
+            image = "${image_name}:${version}"
+            ports = [
+              {
+                containerPort = ${port}
+              }
+            ]
           }
-        }
+        ]
       }
     }
   }
@@ -585,21 +592,171 @@ func TestRenderHCLManifest(t *testing.T) {
 		t.Fatalf("RenderHCLManifest() unexpected error: %v", err)
 	}
 
+	// Test string substitution
+	testHCLStringSubstitution(t, rendered)
+
+	// Test YAML structure
+	testHCLYAMLStructure(t, rendered)
+}
+
+func testHCLStringSubstitution(t *testing.T, rendered []byte) {
 	renderedStr := string(rendered)
 
 	// Check that variables were substituted
 	expectedStrings := []string{
-		"name = \"frank-dev-app\"",
-		"\"app.kubernetes.io/name\" = \"app\"",
-		"\"app.kubernetes.io/version\" = \"1.2.3\"",
-		"replicas = 5",
-		"image = \"nginx:1.2.3\"",
-		"container_port = 8080",
+		"name: frank-dev-app",
+		"app.kubernetes.io/name: app",
+		"app.kubernetes.io/version: 1.2.3",
+		"replicas: 5",
+		"image: nginx:1.2.3",
+		"containerPort: 8080",
 	}
 
 	for _, expected := range expectedStrings {
 		if !strings.Contains(renderedStr, expected) {
 			t.Errorf("Rendered HCL template missing expected string: %s", expected)
 		}
+	}
+}
+
+func testHCLYAMLStructure(t *testing.T, rendered []byte) {
+	// Test that the rendered content is valid YAML
+	var manifest map[string]interface{}
+	if err := yaml.Unmarshal(rendered, &manifest); err != nil {
+		t.Fatalf("Rendered HCL template is not valid YAML: %v", err)
+	}
+
+	// Test basic Kubernetes structure
+	testHCLBasicStructure(t, manifest)
+
+	// Test metadata and labels
+	testHCLMetadata(t, manifest)
+
+	// Test spec structure
+	testHCLSpec(t, manifest)
+}
+
+func testHCLBasicStructure(t *testing.T, manifest map[string]interface{}) {
+	if manifest["apiVersion"] != "apps/v1" {
+		t.Errorf("Expected apiVersion 'apps/v1', got '%v'", manifest["apiVersion"])
+	}
+	if manifest["kind"] != "Deployment" {
+		t.Errorf("Expected kind 'Deployment', got '%v'", manifest["kind"])
+	}
+}
+
+func testHCLMetadata(t *testing.T, manifest map[string]interface{}) {
+	metadata, ok := manifest["metadata"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected metadata to be a map")
+	}
+	if metadata["name"] != "frank-dev-app" {
+		t.Errorf("Expected name 'frank-dev-app', got '%v'", metadata["name"])
+	}
+
+	// Test labels
+	labels, ok := metadata["labels"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected labels to be a map")
+	}
+	if labels["app.kubernetes.io/name"] != "app" {
+		t.Errorf("Expected app.kubernetes.io/name 'app', got '%v'", labels["app.kubernetes.io/name"])
+	}
+	if labels["app.kubernetes.io/version"] != "1.2.3" {
+		t.Errorf("Expected app.kubernetes.io/version '1.2.3', got '%v'", labels["app.kubernetes.io/version"])
+	}
+	if labels["app.kubernetes.io/managed-by"] != "frank" {
+		t.Errorf("Expected app.kubernetes.io/managed-by 'frank', got '%v'", labels["app.kubernetes.io/managed-by"])
+	}
+}
+
+func testHCLSpec(t *testing.T, manifest map[string]interface{}) {
+	spec, ok := manifest["spec"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected spec to be a map")
+	}
+	if spec["replicas"] != 5 {
+		t.Errorf("Expected replicas 5, got '%v'", spec["replicas"])
+	}
+}
+
+func TestRenderHCLManifestWithNamespace(t *testing.T) {
+	// Create a temporary directory for the template
+	tempDir := t.TempDir()
+
+	// Create an HCL template with namespace
+	templateContent := `resource "kubernetes_deployment" "app" {
+  metadata = {
+    name = "${stack_name}"
+    namespace = "${k8s_namespace}"
+    labels = {
+      "app.kubernetes.io/name" = "${app}"
+      "app.kubernetes.io/version" = "${version}"
+      "app.kubernetes.io/managed-by" = "frank"
+    }
+  }
+
+  spec = {
+    replicas = ${replicas}
+
+    selector = {
+      matchLabels = {
+        "app.kubernetes.io/name" = "${app}"
+      }
+    }
+
+    template = {
+      metadata = {
+        labels = {
+          "app.kubernetes.io/name" = "${app}"
+          "app.kubernetes.io/version" = "${version}"
+        }
+      }
+
+      spec = {
+        containers = [
+          {
+            name  = "${app}"
+            image = "${image_name}:${version}"
+          }
+        ]
+      }
+    }
+  }
+}`
+
+	templatePath := filepath.Join(tempDir, "deployment.hcl")
+	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create template file: %v", err)
+	}
+
+	renderer := NewRenderer(nil)
+	context := renderer.BuildTemplateContext(
+		"frank-dev-app", "dev", "frank", "test-namespace", "app", "1.2.3",
+		map[string]interface{}{
+			"replicas":   3,
+			"image_name": "nginx",
+		},
+	)
+
+	rendered, err := renderer.RenderHCLManifest(templatePath, context)
+	if err != nil {
+		t.Fatalf("RenderHCLManifest() unexpected error: %v", err)
+	}
+
+	// Test that the rendered content is valid YAML
+	var manifest map[string]interface{}
+	if err := yaml.Unmarshal(rendered, &manifest); err != nil {
+		t.Fatalf("Rendered HCL template is not valid YAML: %v", err)
+	}
+
+	// Test metadata structure
+	metadata, ok := manifest["metadata"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected metadata to be a map")
+	}
+	if metadata["namespace"] != "test-namespace" {
+		t.Errorf("Expected namespace 'test-namespace', got '%v'", metadata["namespace"])
 	}
 }

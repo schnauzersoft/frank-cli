@@ -1,6 +1,6 @@
 # HCL Templating
 
-Frank supports HCL (HashiCorp Configuration Language) templating for Kubernetes manifest generation. This provides a simpler alternative to Jinja templating with basic variable substitution capabilities.
+Frank supports HCL (HashiCorp Configuration Language) templating for Kubernetes manifest generation. This provides legitimate HCL syntax that is parsed and converted to Kubernetes YAML in memory.
 
 ## Supported File Extensions
 
@@ -13,39 +13,65 @@ Frank automatically detects and processes HCL templates with these extensions:
 
 Here's a simple example of an HCL template:
 
-```yaml
+```hcl
 # manifests/app-deployment.hcl
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ${stack_name}
-  labels:
-    app.kubernetes.io/name: ${app}
-    app.kubernetes.io/version: ${version}
-    app.kubernetes.io/managed-by: frank
-spec:
-  replicas: ${replicas}
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: ${app}
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: ${app}
-        app.kubernetes.io/version: ${version}
-    spec:
-      containers:
-      - name: ${app}
-        image: ${image_name}:${version}
-        ports:
-        - containerPort: ${port}
-        env:
-        - name: ENVIRONMENT
-          value: ${environment}
-        - name: PROJECT_CODE
-          value: ${project_code}
-        - name: NAMESPACE
-          value: ${k8s_namespace}
+resource "kubernetes_deployment" "app" {
+  metadata = {
+    name = "${stack_name}"
+    labels = {
+      "app.kubernetes.io/name" = "${app}"
+      "app.kubernetes.io/version" = "${version}"
+      "app.kubernetes.io/managed-by" = "frank"
+    }
+  }
+
+  spec = {
+    replicas = ${replicas}
+
+    selector = {
+      matchLabels = {
+        "app.kubernetes.io/name" = "${app}"
+      }
+    }
+
+    template = {
+      metadata = {
+        labels = {
+          "app.kubernetes.io/name" = "${app}"
+          "app.kubernetes.io/version" = "${version}"
+        }
+      }
+
+      spec = {
+        containers = [
+          {
+            name  = "${app}"
+            image = "${image_name}:${version}"
+            ports = [
+              {
+                containerPort = ${port}
+              }
+            ]
+            env = [
+              {
+                name  = "ENVIRONMENT"
+                value = "${environment}"
+              },
+              {
+                name  = "PROJECT_CODE"
+                value = "${project_code}"
+              },
+              {
+                name  = "NAMESPACE"
+                value = "${k8s_namespace}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
 ```
 
 ## Template Context Variables
@@ -85,18 +111,33 @@ These become available in your template as:
 - `${port}` → `8080`
 - `${environment}` → `production`
 
-## HCL Variable Syntax
+## HCL Syntax Requirements
 
-HCL templates use `${variable_name}` syntax for variable substitution:
+HCL templates use proper HCL syntax with the following requirements:
 
-```yaml
+- Use `=` for attribute assignment (not blocks)
+- Use `[]` for arrays/lists
+- Use `{}` for objects/maps
+- Field names should use camelCase (e.g., `matchLabels`, `containerPort`)
+- Use `${variable_name}` syntax for variable substitution
+
+```hcl
 # Basic substitution
-name: ${app_name}
-image: ${image_name}:${version}
+name = "${app_name}"
+image = "${image_name}:${version}"
 
-# With default values (using vars block)
-replicas: ${replicas | default(3)}
-port: ${port | default(80)}
+# Arrays and objects
+containers = [
+  {
+    name  = "${app}"
+    image = "${image_name}:${version}"
+    ports = [
+      {
+        containerPort = ${port}
+      }
+    ]
+  }
+]
 ```
 
 ## Configuration Example
@@ -114,39 +155,65 @@ vars:
   environment: development
 ```
 
-```yaml
+```hcl
 # manifests/web-deployment.hcl
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ${stack_name}
-  labels:
-    app.kubernetes.io/name: ${app}
-    app.kubernetes.io/version: ${version}
-    app.kubernetes.io/managed-by: frank
-spec:
-  replicas: ${replicas}
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: ${app}
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: ${app}
-        app.kubernetes.io/version: ${version}
-    spec:
-      containers:
-      - name: ${app}
-        image: ${image_name}:${version}
-        ports:
-        - containerPort: ${port}
-        env:
-        - name: ENVIRONMENT
-          value: ${environment}
-        - name: PROJECT_CODE
-          value: ${project_code}
-        - name: NAMESPACE
-          value: ${k8s_namespace}
+resource "kubernetes_deployment" "app" {
+  metadata = {
+    name = "${stack_name}"
+    labels = {
+      "app.kubernetes.io/name" = "${app}"
+      "app.kubernetes.io/version" = "${version}"
+      "app.kubernetes.io/managed-by" = "frank"
+    }
+  }
+
+  spec = {
+    replicas = ${replicas}
+
+    selector = {
+      matchLabels = {
+        "app.kubernetes.io/name" = "${app}"
+      }
+    }
+
+    template = {
+      metadata = {
+        labels = {
+          "app.kubernetes.io/name" = "${app}"
+          "app.kubernetes.io/version" = "${version}"
+        }
+      }
+
+      spec = {
+        containers = [
+          {
+            name  = "${app}"
+            image = "${image_name}:${version}"
+            ports = [
+              {
+                containerPort = ${port}
+              }
+            ]
+            env = [
+              {
+                name  = "ENVIRONMENT"
+                value = "${environment}"
+              },
+              {
+                name  = "PROJECT_CODE"
+                value = "${project_code}"
+              },
+              {
+                name  = "NAMESPACE"
+                value = "${k8s_namespace}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
 ```
 
 ## Multi-Document YAML
