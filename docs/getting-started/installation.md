@@ -416,7 +416,8 @@ After successful installation:
 1. **Follow the [Quick Start Guide](quick-start.md)** to get up and running
 2. **Read the [Configuration Guide](configuration.md)** to understand configuration options
 3. **Explore [Jinja Templating](../features/jinja-templating.md)** for dynamic manifests
-4. **Check out [Advanced Usage](../advanced/multi-environment.md)** for complex setups
+4. **Try [HCL Templating](../features/hcl-templating.md)** for simple variable substitution
+5. **Check out [Advanced Usage](../advanced/multi-environment.md)** for complex setups
 
 ## Support
 

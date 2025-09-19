@@ -79,6 +79,7 @@ nav:
   - Features:
     - Smart Deployments: features/smart-deployments.md
     - Jinja Templating: features/jinja-templating.md
+    - HCL Templating: features/hcl-templating.md
     - Stack Filtering: features/stack-filtering.md
     - Namespace Management: features/namespace-management.md
     - Resource Management: features/resource-management.md
