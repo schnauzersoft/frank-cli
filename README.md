@@ -16,9 +16,21 @@ Simple multi-environment management of Kubernetes resources.
 > [!CAUTION]
 > This project is pre-release! It's still actively being tested. An official GitHub release will be added once it's ready.
 
-## Quick Start
+## Overview
 
-frank is a CLI tool for applying templated Kubernetes manifest files to clusters with intelligent configuration management, stack-based filtering.
+**frank** is a CLI tool for managing resources in Kubernetes. This project is inspired by many different projects, such as:
+
+- [kubectl](https://kubernetes.io/docs/reference/kubectl/)
+- [terraform](https://developer.hashicorp.com/terraform)
+- [sceptre](https://github.com/Sceptre/sceptre/tree/master)
+
+The namesake of this project, however, is the ultimate inspiration for this application as this project follows similar patterns to how that individual managed cloud-native deployments regardless of the tooling at hand. The intention of this project is to create a stateless (so no terraform), packageless (so no helm), stack-based (so no vanilla kubectl), template-driven mechanism for managing Kubernetes resources. The closest off-the-shelf project that's comparable to the intentions of **frank** is probably [kustomize](https://kustomize.io/). However, **frank** is intented to be more generic and accessible (by leveraging Jinja and HCL) than the esoteric templating patterns of kustomize.
+
+Philosphy of the project:
+
+1. This is a templated deployment project first and foremost. It is not a packaging project, it is not a linting project, it is a project designed to make deploying a single simple boilerplate collection of resources (such a "backend API" Kubernetes deployment and service combination) as easy as possible. The belief is that the vast majority of anyone ever using Kubernetes (a choice which is not entirely optional these days) only need a simple "docker compose" (by level of complexity) configuration to deploy their containers. In the experience of the **frank** maintainers, the standard tooling out there for Kubernetes today lacks that simplicity.
+2. This tool exists to enable people to "do the DevOps" - meaning: the project is designed for deploying essentially the exact same collection of resources (defined as a "stack" by **frank**) to multiple environments, including simultaneously in parallel. This enables users to manage local development, alpha, staging, production environments as Gene Kim intended.
+
 
 ### 1. Building
 
@@ -110,7 +122,7 @@ Dynamic manifest generation with powerful templating:
 Advanced templating with conditionals, loops, and filters:
 
 ```yaml
-# manifests/app-deployment.jinja
+# manifests/app-deployment.j2
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -140,32 +152,65 @@ spec:
 #### **HCL Templating**
 Simple variable substitution with familiar syntax:
 
-```yaml
+```hcl
 # manifests/app-deployment.hcl
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ${stack_name}
-  labels:
-    app.kubernetes.io/name: ${app}
-    app.kubernetes.io/version: ${version}
-    app.kubernetes.io/managed-by: frank
-spec:
-  replicas: ${replicas}
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: ${app}
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: ${app}
-        app.kubernetes.io/version: ${version}
-    spec:
-      containers:
-      - name: ${app}
-        image: ${image_name}:${version}
-        ports:
-        - containerPort: ${port}
+resource "kubernetes_deployment" "app" {
+  metadata = {
+    name = "${stack_name}"
+    labels = {
+      "app.kubernetes.io/name" = "${app}"
+      "app.kubernetes.io/version" = "${version}"
+      "app.kubernetes.io/managed-by" = "frank"
+    }
+  }
+
+  spec = {
+    replicas = ${replicas}
+
+    selector = {
+      matchLabels = {
+        "app.kubernetes.io/name" = "${app}"
+      }
+    }
+
+    template = {
+      metadata = {
+        labels = {
+          "app.kubernetes.io/name" = "${app}"
+          "app.kubernetes.io/version" = "${version}"
+        }
+      }
+
+      spec = {
+        containers = [
+          {
+            name  = "${app}"
+            image = "${image_name}:${version}"
+            ports = [
+              {
+                containerPort = ${port}
+              }
+            ]
+            env = [
+              {
+                name  = "ENVIRONMENT"
+                value = "${environment}"
+              },
+              {
+                name  = "PROJECT_CODE"
+                value = "${project_code}"
+              },
+              {
+                name  = "NAMESPACE"
+                value = "${k8s_namespace}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
 ```
 
 **Template Context Variables:**
@@ -277,56 +322,6 @@ app: myapp                     # Optional: App name (defaults to filename)
 version: 1.2.3                 # Optional: Version for templates
 ```
 
-### Template Files
-
-frank supports both Jinja and HCL templating for dynamic manifest generation:
-
-**Supported Extensions:**
-- `.jinja` - Jinja template files
-- `.j2` - Alternative Jinja extension
-- `.hcl` - HCL template files
-- `.tf` - Terraform-style HCL files
-
-**Jinja Example:**
-```yaml
-# config/app.yaml
-manifest: app-deployment.jinja  # Points to template file
-app: myapp
-version: 1.2.3
-
-# manifests/app-deployment.jinja
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ stack_name }}
-  labels:
-    app.kubernetes.io/name: {{ app_name }}
-    app.kubernetes.io/version: {{ version }}
-```
-
-**HCL Example:**
-```yaml
-# config/app.yaml
-manifest: app-deployment.hcl    # Points to template file
-app: myapp
-version: 1.2.3
-
-# manifests/app-deployment.hcl
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ${stack_name}
-  labels:
-    app.kubernetes.io/name: ${app}
-    app.kubernetes.io/version: ${version}
-```
-
-### Environment Variables
-
-```bash
-export FRANK_LOG_LEVEL=debug  # Set log level (debug, info, warn, error)
-```
-
 ### Configuration Precedence
 
 1. Environment variables (`FRANK_LOG_LEVEL`)
@@ -377,6 +372,10 @@ frank apply prod               # Deploy to production cluster
 # Clean up environments
 frank delete dev               # Remove dev resources
 frank delete staging           # Remove staging resources
+
+# Show changes to environments
+frank plan dev                 # Show diff of expected changes to dev resources
+frank plan prod/app1-backend    # Show diff of changes to a single stack
 ```
 
 ### CI/CD Integration
@@ -394,27 +393,7 @@ frank delete staging --yes     # Clean up staging
 FRANK_LOG_LEVEL=debug frank apply dev
 
 # Check what would be deployed
-frank apply dev                # Shows confirmation with scope
-```
-
-## Project Structure
-
-```
-frank-cli/
-├── cmd/                       # Command implementations
-│   ├── root.go               # Root command
-│   ├── apply.go              # Apply command
-│   ├── delete.go             # Delete command
-│   └── utils.go              # Shared utilities
-├── pkg/
-│   ├── config/               # Configuration management
-│   ├── deploy/               # Deployment orchestration
-│   ├── kubernetes/           # Kubernetes operations
-│   ├── stack/                # Stack management
-│   └── template/             # Jinja and HCL templating engine
-├── config/                   # Example configurations
-├── manifests/                # Example manifests
-└── main.go                   # Application entry point
+frank plan dev
 ```
 
 ## Development
@@ -423,7 +402,6 @@ frank-cli/
 
 - Go 1.25 or later
 - Kubernetes cluster access
-- kubectl configured
 
 ### Building
 
@@ -439,9 +417,12 @@ go build -o frank .
 ./frank apply --yes
 
 # Test with debug logging
-FRANK_LOG_LEVEL=debug ./frank apply dev
+FRANK_LOG_LEVEL=debug ./frank apply local
 
 # Test stack filtering
-./frank apply dev
-./frank delete dev
+./frank apply local
+./frank delete local
+
+# Run unit tests
+go test ./...
 ```
