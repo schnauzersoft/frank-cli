@@ -44,6 +44,11 @@ func NewExecutor(configDir string, logger *slog.Logger) (*Executor, error) {
 		return nil, fmt.Errorf("failed to create Kubernetes deployer: %v", err)
 	}
 
+	return NewExecutorWithDeployer(configDir, logger, k8sDeployer), nil
+}
+
+// NewExecutorWithDeployer creates a new plan executor with a deployer (to enable test mocking)
+func NewExecutorWithDeployer(configDir string, logger *slog.Logger, k8sDeployer *kubernetes.Deployer) *Executor {
 	// Create template renderer
 	templateRenderer := template.NewRenderer(logger)
 
@@ -56,7 +61,7 @@ func NewExecutor(configDir string, logger *slog.Logger) (*Executor, error) {
 		k8sDeployer:      k8sDeployer,
 		templateRenderer: templateRenderer,
 		planner:          planner,
-	}, nil
+	}
 }
 
 // PlanAll plans all configurations without applying them

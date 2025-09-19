@@ -9,9 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/schnauzersoft/frank-cli/pkg/kubernetes"
 )
 
-func TestExecutor_NewExecutor(t *testing.T) {
+func TestExecutor_NewExecutorWithDeployer(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "config")
@@ -25,11 +27,11 @@ func TestExecutor_NewExecutor(t *testing.T) {
 		Level: slog.LevelError,
 	}))
 
-	// Test creating executor
-	executor, err := NewExecutor(configDir, logger)
-	if err != nil {
-		t.Fatalf("Failed to create executor: %v", err)
-	}
+	// Create a nil deployer for testing (we'll test methods that don't require it)
+	var mockDeployer *kubernetes.Deployer = nil
+
+	// Test creating executor with mock deployer (avoiding kubeconfig requirement)
+	executor := NewExecutorWithDeployer(configDir, logger, mockDeployer)
 
 	if executor == nil {
 		t.Fatal("Expected executor to be created")
@@ -43,8 +45,8 @@ func TestExecutor_NewExecutor(t *testing.T) {
 		t.Error("Expected logger to be set")
 	}
 
-	if executor.k8sDeployer == nil {
-		t.Error("Expected k8sDeployer to be set")
+	if executor.k8sDeployer != mockDeployer {
+		t.Error("Expected k8sDeployer to match the provided deployer")
 	}
 
 	if executor.templateRenderer == nil {
@@ -421,11 +423,9 @@ func createTestExecutor(t *testing.T) *Executor {
 		Level: slog.LevelError,
 	}))
 
-	// Create executor
-	executor, err := NewExecutor(configDir, logger)
-	if err != nil {
-		t.Fatalf("Failed to create executor: %v", err)
-	}
+	// Create executor with nil deployer to avoid kubeconfig requirement
+	var mockDeployer *kubernetes.Deployer = nil
+	executor := NewExecutorWithDeployer(configDir, logger, mockDeployer)
 
 	return executor
 }
