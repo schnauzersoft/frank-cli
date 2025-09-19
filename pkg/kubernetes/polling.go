@@ -11,7 +11,7 @@ import (
 )
 
 // pollForCompletion polls the Kubernetes API until the resource is ready or timeout
-func (d *Deployer) pollForCompletion(gvr schema.GroupVersionResource, namespace, name, stackName string, resource *unstructured.Unstructured, timeout time.Duration) (string, error) {
+func (d *Deployer) pollForCompletion(gvr schema.GroupVersionResource, namespace, name, stackName string, timeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 

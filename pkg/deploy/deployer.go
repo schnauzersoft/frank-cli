@@ -618,7 +618,7 @@ func (d *Deployer) extractManifestContent(manifestData interface{}) ([]byte, err
 func (d *Deployer) extractManifestNamespace(manifestContent []byte) (string, error) {
 	// Handle multi-document YAML (for HCL templates that generate multiple resources)
 	decoder := yaml.NewDecoder(bytes.NewReader(manifestContent))
-	
+
 	for {
 		var manifest map[string]any
 		err := decoder.Decode(&manifest)

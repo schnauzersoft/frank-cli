@@ -18,7 +18,7 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete resources managed by frank",
 	Long: `Clean up your Kubernetes resources with surgical precision.
 
-Frank finds and removes resources it previously deployed, using stack
+frank finds and removes resources it previously deployed, using stack
 annotations to identify what belongs to frank vs other tools.
 
 What delete does:

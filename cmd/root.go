@@ -25,7 +25,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "frank",
 	Short: "A CLI tool for applying templated Kubernetes manifest files",
-	Long: `Frank is a CLI application for applying templated Kubernetes manifest files to clusters.
+	Long: `frank is a CLI application for applying templated Kubernetes manifest files to clusters.
 
 It reads configuration from config/ and applies manifests from the manifests/ directory
 to the specified Kubernetes cluster using the context name provided in the configuration.

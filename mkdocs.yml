@@ -6,6 +6,8 @@ repo_name: schnauzersoft/frank-cli
 edit_uri: edit/main/docs/
 
 theme:
+  favicon: assets/favicon.ico
+  logo: assets/logo.png
   name: material
   palette:
     - media: "(prefers-color-scheme: light)"
