@@ -324,7 +324,7 @@ spec:
   invalid: [`,
 			configNamespace: "config-namespace",
 			expectError:     true,
-			errorContains:   "failed to parse manifest YAML",
+			errorContains:   "invalid YAML format in manifest",
 		},
 	}
 }
