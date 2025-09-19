@@ -123,8 +123,13 @@ func (d *Deployer) getDeploymentStatus(resource *unstructured.Unstructured) stri
 		return "Progressing"
 	}
 
-	// Check conditions
+	return d.checkDeploymentConditions(status)
+}
+
+// checkDeploymentConditions checks deployment-specific conditions
+func (d *Deployer) checkDeploymentConditions(status map[string]interface{}) string {
 	conditions, _, _ := unstructured.NestedSlice(status, "conditions")
+
 	for _, cond := range conditions {
 		condMap, ok := cond.(map[string]interface{})
 		if !ok {
@@ -134,15 +139,25 @@ func (d *Deployer) getDeploymentStatus(resource *unstructured.Unstructured) stri
 		condType, _, _ := unstructured.NestedString(condMap, "type")
 		condStatus, _, _ := unstructured.NestedString(condMap, "status")
 
-		if condType == "Available" && condStatus == "True" {
+		if d.isDeploymentAvailable(condType, condStatus) {
 			return "Available"
 		}
-		if condType == "Progressing" && condStatus == "False" {
+		if d.isDeploymentFailed(condType, condStatus) {
 			return "Failed"
 		}
 	}
 
 	return "Progressing"
+}
+
+// isDeploymentAvailable checks if deployment is available
+func (d *Deployer) isDeploymentAvailable(condType, condStatus string) bool {
+	return condType == "Available" && condStatus == "True"
+}
+
+// isDeploymentFailed checks if deployment failed
+func (d *Deployer) isDeploymentFailed(condType, condStatus string) bool {
+	return condType == "Progressing" && condStatus == "False"
 }
 
 // getStatefulSetStatus checks the status of a StatefulSet
@@ -204,8 +219,13 @@ func (d *Deployer) getJobStatus(resource *unstructured.Unstructured) string {
 		return "Progressing"
 	}
 
-	// Check conditions
+	return d.checkJobConditions(status)
+}
+
+// checkJobConditions checks job-specific conditions
+func (d *Deployer) checkJobConditions(status map[string]interface{}) string {
 	conditions, _, _ := unstructured.NestedSlice(status, "conditions")
+
 	for _, cond := range conditions {
 		condMap, ok := cond.(map[string]interface{})
 		if !ok {
@@ -215,15 +235,25 @@ func (d *Deployer) getJobStatus(resource *unstructured.Unstructured) string {
 		condType, _, _ := unstructured.NestedString(condMap, "type")
 		condStatus, _, _ := unstructured.NestedString(condMap, "status")
 
-		if condType == "Complete" && condStatus == "True" {
+		if d.isJobComplete(condType, condStatus) {
 			return "Complete"
 		}
-		if condType == "Failed" && condStatus == "True" {
+		if d.isJobFailed(condType, condStatus) {
 			return "Failed"
 		}
 	}
 
 	return "Progressing"
+}
+
+// isJobComplete checks if job is complete
+func (d *Deployer) isJobComplete(condType, condStatus string) bool {
+	return condType == "Complete" && condStatus == "True"
+}
+
+// isJobFailed checks if job failed
+func (d *Deployer) isJobFailed(condType, condStatus string) bool {
+	return condType == "Failed" && condStatus == "True"
 }
 
 // getPodStatus checks the status of a Pod
@@ -255,8 +285,13 @@ func (d *Deployer) getGenericStatus(resource *unstructured.Unstructured) string 
 		return "Progressing"
 	}
 
-	// Check conditions
+	return d.checkGenericConditions(status)
+}
+
+// checkGenericConditions checks generic resource conditions
+func (d *Deployer) checkGenericConditions(status map[string]interface{}) string {
 	conditions, _, _ := unstructured.NestedSlice(status, "conditions")
+
 	for _, cond := range conditions {
 		condMap, ok := cond.(map[string]interface{})
 		if !ok {
@@ -266,13 +301,23 @@ func (d *Deployer) getGenericStatus(resource *unstructured.Unstructured) string 
 		condType, _, _ := unstructured.NestedString(condMap, "type")
 		condStatus, _, _ := unstructured.NestedString(condMap, "status")
 
-		if condType == "Complete" && condStatus == "True" {
+		if d.isGenericComplete(condType, condStatus) {
 			return "Complete"
 		}
-		if condType == "Failed" && condStatus == "True" {
+		if d.isGenericFailed(condType, condStatus) {
 			return "Failed"
 		}
 	}
 
 	return "Progressing"
+}
+
+// isGenericComplete checks if generic resource is complete
+func (d *Deployer) isGenericComplete(condType, condStatus string) bool {
+	return condType == "Complete" && condStatus == "True"
+}
+
+// isGenericFailed checks if generic resource failed
+func (d *Deployer) isGenericFailed(condType, condStatus string) bool {
+	return condType == "Failed" && condStatus == "True"
 }

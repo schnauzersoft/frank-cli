@@ -357,7 +357,7 @@ frank-cli/
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.25 or later
 - Kubernetes cluster access
 - kubectl configured
 

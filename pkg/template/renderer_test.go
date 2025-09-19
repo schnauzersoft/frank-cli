@@ -1,6 +1,7 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,16 @@ func TestIsTemplateFile(t *testing.T) {
 		{
 			name:     "j2 file",
 			filePath: "config.j2",
+			expected: true,
+		},
+		{
+			name:     "hcl file",
+			filePath: "deployment.hcl",
+			expected: true,
+		},
+		{
+			name:     "tf file",
+			filePath: "config.tf",
 			expected: true,
 		},
 		{
@@ -73,6 +84,7 @@ func TestBuildTemplateContext(t *testing.T) {
 		namespace      string
 		app            string
 		version        string
+		vars           map[string]interface{}
 		expectedKeys   []string
 		expectedValues map[string]string
 	}{
@@ -84,8 +96,9 @@ func TestBuildTemplateContext(t *testing.T) {
 			namespace:   "dev-namespace",
 			app:         "app",
 			version:     "1.2.3",
+			vars:        nil,
 			expectedKeys: []string{
-				"stack_name", "context", "project_code", "namespace", "app", "version", "k8s_namespace",
+				"stack_name", "context", "project_code", "namespace", "app", "version", "k8s_namespace", "app_name",
 			},
 			expectedValues: map[string]string{
 				"stack_name":    "frank-dev-app",
@@ -95,6 +108,7 @@ func TestBuildTemplateContext(t *testing.T) {
 				"app":           "app",
 				"version":       "1.2.3",
 				"k8s_namespace": "dev-namespace",
+				"app_name":      "app",
 			},
 		},
 		{
@@ -105,8 +119,38 @@ func TestBuildTemplateContext(t *testing.T) {
 			namespace:   "",
 			app:         "app",
 			version:     "2.0.0",
+			vars:        nil,
 			expectedValues: map[string]string{
 				"k8s_namespace": "default",
+			},
+		},
+		{
+			name:        "with vars",
+			stackName:   "frank-dev-app",
+			context:     "dev",
+			projectCode: "frank",
+			namespace:   "dev-namespace",
+			app:         "app",
+			version:     "1.2.3",
+			vars: map[string]interface{}{
+				"replicas":    3,
+				"image_name":  "nginx",
+				"port":        8080,
+				"environment": "development",
+			},
+			expectedKeys: []string{
+				"stack_name", "context", "project_code", "namespace", "app", "version", "k8s_namespace", "app_name",
+				"replicas", "image_name", "port", "environment",
+			},
+			expectedValues: map[string]string{
+				"stack_name":    "frank-dev-app",
+				"context":       "dev",
+				"project_code":  "frank",
+				"namespace":     "dev-namespace",
+				"app":           "app",
+				"version":       "1.2.3",
+				"k8s_namespace": "dev-namespace",
+				"app_name":      "app",
 			},
 		},
 	}
@@ -114,7 +158,7 @@ func TestBuildTemplateContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			context := renderer.BuildTemplateContext(
-				tt.stackName, tt.context, tt.projectCode, tt.namespace, tt.app, tt.version,
+				tt.stackName, tt.context, tt.projectCode, tt.namespace, tt.app, tt.version, tt.vars,
 			)
 
 			validateTemplateContext(t, context, tt.expectedKeys, tt.expectedValues)
@@ -124,23 +168,38 @@ func TestBuildTemplateContext(t *testing.T) {
 
 // validateTemplateContext validates the template context against expected keys and values
 func validateTemplateContext(t *testing.T, context map[string]interface{}, expectedKeys []string, expectedValues map[string]string) {
-	// Check that all expected keys exist
+	validateExpectedKeys(t, context, expectedKeys)
+	validateExpectedValues(t, context, expectedValues)
+}
+
+// validateExpectedKeys checks that all expected keys exist in the context
+func validateExpectedKeys(t *testing.T, context map[string]interface{}, expectedKeys []string) {
 	for _, key := range expectedKeys {
 		if _, exists := context[key]; !exists {
 			t.Errorf("Expected key %s not found in context", key)
 		}
 	}
+}
 
-	// Check specific values
+// validateExpectedValues checks specific values in the context
+func validateExpectedValues(t *testing.T, context map[string]interface{}, expectedValues map[string]string) {
 	for key, expectedValue := range expectedValues {
-		if actualValue, exists := context[key]; exists {
-			if actualValue != expectedValue {
-				t.Errorf("Context[%s] = %v, want %v", key, actualValue, expectedValue)
-			}
-		} else {
+		actualValue, exists := context[key]
+		if !exists {
 			t.Errorf("Expected key %s not found in context", key)
+			continue
+		}
+
+		if !valuesMatch(actualValue, expectedValue) {
+			t.Errorf("Context[%s] = %v, want %v", key, actualValue, expectedValue)
 		}
 	}
+}
+
+// valuesMatch compares actual and expected values, handling type differences
+func valuesMatch(actualValue interface{}, expectedValue string) bool {
+	actualStr := fmt.Sprintf("%v", actualValue)
+	return actualStr == expectedValue
 }
 
 func TestRenderManifest(t *testing.T) {
@@ -185,7 +244,7 @@ spec:
 
 	renderer := NewRenderer(nil)
 	context := renderer.BuildTemplateContext(
-		"frank-dev-app", "dev", "frank", "dev-namespace", "app", "1.2.3",
+		"frank-dev-app", "dev", "frank", "dev-namespace", "app", "1.2.3", nil,
 	)
 
 	rendered, err := renderer.RenderManifest(templatePath, context)
@@ -269,7 +328,7 @@ spec:
 
 	// Test prod context
 	prodContext := renderer.BuildTemplateContext(
-		"frank-prod-app", "prod", "frank", "prod-namespace", "app", "2.0.0",
+		"frank-prod-app", "prod", "frank", "prod-namespace", "app", "2.0.0", nil,
 	)
 
 	prodRendered, err := renderer.RenderManifest(templatePath, prodContext)
@@ -290,7 +349,7 @@ spec:
 
 	// Test dev context
 	devContext := renderer.BuildTemplateContext(
-		"frank-dev-app", "dev", "frank", "dev-namespace", "app", "",
+		"frank-dev-app", "dev", "frank", "dev-namespace", "app", "", nil,
 	)
 
 	devRendered, err := renderer.RenderManifest(templatePath, devContext)
@@ -307,5 +366,240 @@ spec:
 	}
 	if !strings.Contains(devStr, "memory: \"256Mi\"") {
 		t.Errorf("Dev context should have lower memory requests")
+	}
+}
+
+func TestIsJinjaTemplate(t *testing.T) {
+	renderer := NewRenderer(nil)
+
+	tests := []struct {
+		name     string
+		filePath string
+		expected bool
+	}{
+		{
+			name:     "jinja file",
+			filePath: "deployment.jinja",
+			expected: true,
+		},
+		{
+			name:     "j2 file",
+			filePath: "config.j2",
+			expected: true,
+		},
+		{
+			name:     "hcl file",
+			filePath: "deployment.hcl",
+			expected: false,
+		},
+		{
+			name:     "yaml file",
+			filePath: "deployment.yaml",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := renderer.IsJinjaTemplate(tt.filePath)
+			if result != tt.expected {
+				t.Errorf("IsJinjaTemplate() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsHCLTemplate(t *testing.T) {
+	renderer := NewRenderer(nil)
+
+	tests := []struct {
+		name     string
+		filePath string
+		expected bool
+	}{
+		{
+			name:     "hcl file",
+			filePath: "deployment.hcl",
+			expected: true,
+		},
+		{
+			name:     "tf file",
+			filePath: "config.tf",
+			expected: true,
+		},
+		{
+			name:     "jinja file",
+			filePath: "deployment.jinja",
+			expected: false,
+		},
+		{
+			name:     "yaml file",
+			filePath: "deployment.yaml",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := renderer.IsHCLTemplate(tt.filePath)
+			if result != tt.expected {
+				t.Errorf("IsHCLTemplate() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRenderManifestWithVars(t *testing.T) {
+	// Create a temporary directory for the template
+	tempDir := t.TempDir()
+
+	// Create a Jinja template that uses vars
+	templateContent := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ stack_name }}
+  labels:
+    app.kubernetes.io/name: {{ app }}
+    app.kubernetes.io/version: {{ version }}
+    app.kubernetes.io/managed-by: frank
+spec:
+  replicas: {{ replicas | default(3) }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ app }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ app }}
+    spec:
+      containers:
+      - name: {{ app }}
+        image: {{ image_name }}:{{ version }}
+        ports:
+        - containerPort: {{ port | default(80) }}
+        env:
+        - name: ENVIRONMENT
+          value: {{ environment }}`
+
+	templatePath := filepath.Join(tempDir, "deployment.jinja")
+	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create template file: %v", err)
+	}
+
+	renderer := NewRenderer(nil)
+	context := renderer.BuildTemplateContext(
+		"frank-dev-app", "dev", "frank", "dev-namespace", "app", "1.2.3",
+		map[string]interface{}{
+			"replicas":    5,
+			"image_name":  "nginx",
+			"port":        8080,
+			"environment": "development",
+		},
+	)
+
+	rendered, err := renderer.RenderManifest(templatePath, context)
+	if err != nil {
+		t.Fatalf("RenderManifest() unexpected error: %v", err)
+	}
+
+	renderedStr := string(rendered)
+
+	// Check that vars were used
+	expectedStrings := []string{
+		"replicas: 5",         // from vars
+		"image: nginx:1.2.3",  // image_name from vars, version from context
+		"containerPort: 8080", // port from vars
+		"value: development",  // environment from vars
+	}
+
+	for _, expected := range expectedStrings {
+		if !strings.Contains(renderedStr, expected) {
+			t.Errorf("Rendered template missing expected string: %s", expected)
+		}
+	}
+}
+
+func TestRenderHCLManifest(t *testing.T) {
+	// Create a temporary directory for the template
+	tempDir := t.TempDir()
+
+	// Create a simple HCL template
+	templateContent := `resource "kubernetes_deployment" "app" {
+  metadata {
+    name = "${stack_name}"
+    labels = {
+      "app.kubernetes.io/name" = "${app}"
+      "app.kubernetes.io/version" = "${version}"
+      "app.kubernetes.io/managed-by" = "frank"
+    }
+  }
+  
+  spec {
+    replicas = ${replicas}
+    
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "${app}"
+      }
+    }
+    
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name" = "${app}"
+        }
+      }
+      
+      spec {
+        container {
+          name  = "${app}"
+          image = "${image_name}:${version}"
+          port {
+            container_port = ${port}
+          }
+        }
+      }
+    }
+  }
+}`
+
+	templatePath := filepath.Join(tempDir, "deployment.hcl")
+	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create template file: %v", err)
+	}
+
+	renderer := NewRenderer(nil)
+	context := renderer.BuildTemplateContext(
+		"frank-dev-app", "dev", "frank", "dev-namespace", "app", "1.2.3",
+		map[string]interface{}{
+			"replicas":   5,
+			"image_name": "nginx",
+			"port":       8080,
+		},
+	)
+
+	rendered, err := renderer.RenderHCLManifest(templatePath, context)
+	if err != nil {
+		t.Fatalf("RenderHCLManifest() unexpected error: %v", err)
+	}
+
+	renderedStr := string(rendered)
+
+	// Check that variables were substituted
+	expectedStrings := []string{
+		"name = \"frank-dev-app\"",
+		"\"app.kubernetes.io/name\" = \"app\"",
+		"\"app.kubernetes.io/version\" = \"1.2.3\"",
+		"replicas = 5",
+		"image = \"nginx:1.2.3\"",
+		"container_port = 8080",
+	}
+
+	for _, expected := range expectedStrings {
+		if !strings.Contains(renderedStr, expected) {
+			t.Errorf("Rendered HCL template missing expected string: %s", expected)
+		}
 	}
 }

@@ -26,7 +26,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
 
       - name: Build Frank
         run: |
@@ -166,7 +166,7 @@ variables:
 
 build:
   stage: build
-  image: golang:1.21-alpine
+  image: golang:1.25-alpine
   script:
     - go build -o frank .
     - chmod +x frank

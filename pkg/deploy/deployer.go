@@ -24,8 +24,9 @@ import (
 
 // ManifestConfig represents manifest-specific configuration
 type ManifestConfig struct {
-	Manifest string        `yaml:"manifest"`
-	Timeout  time.Duration `yaml:"timeout"`
+	Manifest string                 `yaml:"manifest"`
+	Timeout  time.Duration          `yaml:"timeout"`
+	Vars     map[string]interface{} `yaml:"vars"`
 }
 
 // DeploymentResult represents the result of a deployment operation
@@ -130,15 +131,11 @@ func (d *Deployer) findAllConfigFiles() ([]string, error) {
 			return err
 		}
 
-		// Skip directories
 		if info.IsDir() {
 			return nil
 		}
 
-		// Check if it's a YAML file (but not config.yaml) or a Jinja template
-		if ((strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml")) &&
-			info.Name() != "config.yaml" && info.Name() != "config.yml") ||
-			(strings.HasSuffix(info.Name(), ".jinja") || strings.HasSuffix(info.Name(), ".j2")) {
+		if d.isConfigFile(info.Name()) {
 			configFiles = append(configFiles, path)
 		}
 
@@ -146,6 +143,32 @@ func (d *Deployer) findAllConfigFiles() ([]string, error) {
 	})
 
 	return configFiles, err
+}
+
+// isConfigFile checks if a file is a valid config file
+func (d *Deployer) isConfigFile(filename string) bool {
+	// Check for YAML files (but not config.yaml)
+	if d.isYAMLFile(filename) && !d.isConfigYAML(filename) {
+		return true
+	}
+
+	// Check for Jinja templates
+	return d.isJinjaFile(filename)
+}
+
+// isYAMLFile checks if file is a YAML file
+func (d *Deployer) isYAMLFile(filename string) bool {
+	return strings.HasSuffix(filename, ".yaml") || strings.HasSuffix(filename, ".yml")
+}
+
+// isConfigYAML checks if file is a config.yaml file
+func (d *Deployer) isConfigYAML(filename string) bool {
+	return filename == "config.yaml" || filename == "config.yml"
+}
+
+// isJinjaFile checks if file is a Jinja template
+func (d *Deployer) isJinjaFile(filename string) bool {
+	return strings.HasSuffix(filename, ".jinja") || strings.HasSuffix(filename, ".j2")
 }
 
 // filterConfigFilesByStack filters config files based on stack pattern
@@ -236,13 +259,13 @@ func (d *Deployer) deploySingleConfig(configPath string) DeploymentResult {
 	}
 
 	// Find and prepare manifest file
-	finalManifestPath, result := d.findAndPrepareManifest(manifestConfig, stackInfo, timestamp)
+	manifestData, result := d.findAndPrepareManifest(manifestConfig, stackInfo, timestamp)
 	if result.Error != nil {
 		return result
 	}
 
 	// Validate and apply manifest
-	return d.validateAndApplyManifest(finalManifestPath, manifestConfig, stackInfo, timestamp)
+	return d.validateAndApplyManifest(manifestData, manifestConfig, stackInfo, timestamp)
 }
 
 // readConfigAndStackInfo reads the manifest config and gets stack info
@@ -284,7 +307,7 @@ func (d *Deployer) readConfigAndStackInfo(configPath string, timestamp time.Time
 }
 
 // findAndPrepareManifest finds the manifest file and renders it if it's a template
-func (d *Deployer) findAndPrepareManifest(manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) (string, DeploymentResult) {
+func (d *Deployer) findAndPrepareManifest(manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) (interface{}, DeploymentResult) {
 	// Find the manifest file
 	manifestPath, err := d.findManifestFile(manifestConfig.Manifest)
 	if err != nil {
@@ -301,14 +324,18 @@ func (d *Deployer) findAndPrepareManifest(manifestConfig *ManifestConfig, stackI
 
 	// Check if this is a template file and render it
 	if d.templateRenderer.IsTemplateFile(manifestPath) {
-		return d.renderTemplate(manifestPath, stackInfo, manifestConfig, timestamp)
+		content, result := d.renderTemplate(manifestPath, stackInfo, manifestConfig, timestamp)
+		if result.Error != nil {
+			return "", result
+		}
+		return content, DeploymentResult{}
 	}
 
 	return manifestPath, DeploymentResult{}
 }
 
-// renderTemplate renders a Jinja template to a temporary file
-func (d *Deployer) renderTemplate(manifestPath string, stackInfo *stack.StackInfo, manifestConfig *ManifestConfig, timestamp time.Time) (string, DeploymentResult) {
+// renderTemplate renders a Jinja template to memory
+func (d *Deployer) renderTemplate(manifestPath string, stackInfo *stack.StackInfo, manifestConfig *ManifestConfig, timestamp time.Time) ([]byte, DeploymentResult) {
 	d.logger.Debug("Rendering template", "template", manifestPath)
 
 	// Build template context
@@ -319,13 +346,14 @@ func (d *Deployer) renderTemplate(manifestPath string, stackInfo *stack.StackInf
 		stackInfo.Namespace,
 		stackInfo.App,
 		stackInfo.Version,
+		manifestConfig.Vars,
 	)
 
-	// Render the template to a temporary file
+	// Render the template to memory
 	renderedContent, err := d.templateRenderer.RenderManifest(manifestPath, templateContext)
 	if err != nil {
 		d.logger.Debug("Failed to render template", "template", manifestPath, "error", err)
-		return "", DeploymentResult{
+		return nil, DeploymentResult{
 			Context:   stackInfo.Context,
 			StackName: stackInfo.Name,
 			Manifest:  manifestConfig.Manifest,
@@ -335,39 +363,12 @@ func (d *Deployer) renderTemplate(manifestPath string, stackInfo *stack.StackInf
 		}
 	}
 
-	// Create a temporary file for the rendered content
-	tempFile, err := os.CreateTemp("", "frank-rendered-*.yaml")
-	if err != nil {
-		return "", DeploymentResult{
-			Context:   stackInfo.Context,
-			StackName: stackInfo.Name,
-			Manifest:  manifestConfig.Manifest,
-			Response:  "",
-			Error:     fmt.Errorf("error creating temp file: %v", err),
-			Timestamp: timestamp,
-		}
-	}
-	defer os.Remove(tempFile.Name()) // Clean up temp file
-
-	if _, err := tempFile.Write(renderedContent); err != nil {
-		tempFile.Close()
-		return "", DeploymentResult{
-			Context:   stackInfo.Context,
-			StackName: stackInfo.Name,
-			Manifest:  manifestConfig.Manifest,
-			Response:  "",
-			Error:     fmt.Errorf("error writing rendered content: %v", err),
-			Timestamp: timestamp,
-		}
-	}
-	tempFile.Close()
-
-	d.logger.Debug("Template rendered successfully", "template", manifestPath, "rendered", tempFile.Name())
-	return tempFile.Name(), DeploymentResult{}
+	d.logger.Debug("Template rendered successfully", "template", manifestPath, "size", len(renderedContent))
+	return renderedContent, DeploymentResult{}
 }
 
 // validateAndApplyManifest validates namespace and applies the manifest
-func (d *Deployer) validateAndApplyManifest(finalManifestPath string, manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) DeploymentResult {
+func (d *Deployer) validateAndApplyManifest(manifestData interface{}, manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) DeploymentResult {
 	// Set default timeout if not specified
 	timeout := manifestConfig.Timeout
 	if timeout == 0 {
@@ -376,7 +377,7 @@ func (d *Deployer) validateAndApplyManifest(finalManifestPath string, manifestCo
 
 	// Validate namespace configuration
 	d.logger.Debug("Validating namespace", "config_namespace", stackInfo.Namespace, "manifest", manifestConfig.Manifest)
-	if err := d.validateNamespaceConfiguration(finalManifestPath, stackInfo.Namespace); err != nil {
+	if err := d.validateNamespaceConfiguration(manifestData, stackInfo.Namespace); err != nil {
 		d.logger.Error("Namespace validation failed", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
 			Context:   stackInfo.Context,
@@ -389,7 +390,26 @@ func (d *Deployer) validateAndApplyManifest(finalManifestPath string, manifestCo
 	}
 
 	// Apply the manifest using the real Kubernetes deployer
-	result, err := d.k8sDeployer.DeployManifest(finalManifestPath, stackInfo.Name, stackInfo.Namespace, timeout)
+	var result *kubernetes.DeployResult
+	var err error
+
+	if manifestPath, ok := manifestData.(string); ok {
+		// It's a file path
+		result, err = d.k8sDeployer.DeployManifest(manifestPath, stackInfo.Name, stackInfo.Namespace, timeout)
+	} else if manifestContent, ok := manifestData.([]byte); ok {
+		// It's content in memory
+		result, err = d.k8sDeployer.DeployManifestContent(manifestContent, stackInfo.Name, stackInfo.Namespace, timeout)
+	} else {
+		return DeploymentResult{
+			Context:   stackInfo.Context,
+			StackName: stackInfo.Name,
+			Manifest:  manifestConfig.Manifest,
+			Response:  "",
+			Error:     fmt.Errorf("invalid manifest data type: %T", manifestData),
+			Timestamp: timestamp,
+		}
+	}
+
 	if err != nil {
 		d.logger.Debug("Failed to apply manifest", "manifest", manifestConfig.Manifest, "error", err)
 		return DeploymentResult{
@@ -550,30 +570,73 @@ func (d *Deployer) findJinjaTemplate(manifestPath string) string {
 }
 
 // validateNamespaceConfiguration checks for namespace conflicts between config and manifest
-func (d *Deployer) validateNamespaceConfiguration(manifestPath, configNamespace string) error {
-	// Read the manifest file to check for namespace
-	manifestData, err := os.ReadFile(manifestPath)
+func (d *Deployer) validateNamespaceConfiguration(manifestData interface{}, configNamespace string) error {
+	manifestContent, err := d.extractManifestContent(manifestData)
 	if err != nil {
-		return fmt.Errorf("failed to read manifest file: %v", err)
+		return err
 	}
 
-	// Parse the YAML to check for namespace field
-	var manifest map[string]interface{}
-	if err := yaml.Unmarshal(manifestData, &manifest); err != nil {
-		return fmt.Errorf("failed to parse manifest YAML: %v", err)
+	manifestNamespace, err := d.extractManifestNamespace(manifestContent)
+	if err != nil {
+		return err
 	}
 
-	// Check if manifest has a namespace field
-	metadata, hasMetadata := manifest["metadata"].(map[string]interface{})
-	if hasMetadata {
-		manifestNamespace, hasManifestNamespace := metadata["namespace"].(string)
-		d.logger.Debug("Namespace validation", "config_namespace", configNamespace, "manifest_namespace", manifestNamespace, "has_manifest_namespace", hasManifestNamespace)
-		if hasManifestNamespace && manifestNamespace != "" {
-			// Both config and manifest have namespace - this is an error
-			if configNamespace != "" {
-				return fmt.Errorf("namespace specified in both config file (%s) and manifest file (%s) - specify namespace in only one place", configNamespace, manifestNamespace)
-			}
+	return d.checkNamespaceConflict(configNamespace, manifestNamespace)
+}
+
+// extractManifestContent extracts content from either file path or byte content
+func (d *Deployer) extractManifestContent(manifestData interface{}) ([]byte, error) {
+	if manifestPath, ok := manifestData.(string); ok {
+		// It's a file path
+		content, err := os.ReadFile(manifestPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read manifest file: %v", err)
 		}
+		return content, nil
+	}
+
+	if content, ok := manifestData.([]byte); ok {
+		// It's content in memory
+		return content, nil
+	}
+
+	return nil, fmt.Errorf("invalid manifest data type: %T", manifestData)
+}
+
+// extractManifestNamespace extracts namespace from manifest YAML
+func (d *Deployer) extractManifestNamespace(manifestContent []byte) (string, error) {
+	var manifest map[string]interface{}
+	if err := yaml.Unmarshal(manifestContent, &manifest); err != nil {
+		return "", fmt.Errorf("failed to parse manifest YAML: %v", err)
+	}
+
+	metadata, hasMetadata := manifest["metadata"].(map[string]interface{})
+	if !hasMetadata {
+		return "", nil
+	}
+
+	manifestNamespace, hasManifestNamespace := metadata["namespace"].(string)
+	if !hasManifestNamespace || manifestNamespace == "" {
+		return "", nil
+	}
+
+	return manifestNamespace, nil
+}
+
+// checkNamespaceConflict checks for namespace conflicts
+func (d *Deployer) checkNamespaceConflict(configNamespace, manifestNamespace string) error {
+	if manifestNamespace == "" {
+		return nil
+	}
+
+	d.logger.Debug("Namespace validation",
+		"config_namespace", configNamespace,
+		"manifest_namespace", manifestNamespace,
+		"has_manifest_namespace", true)
+
+	if configNamespace != "" {
+		return fmt.Errorf("namespace specified in both config file (%s) and manifest file (%s) - specify namespace in only one place",
+			configNamespace, manifestNamespace)
 	}
 
 	return nil

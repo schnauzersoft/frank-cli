@@ -6,7 +6,7 @@ This guide covers different ways to install Frank CLI on your system.
 
 Before installing Frank, ensure you have:
 
-- **Go 1.21 or later** - [Download Go](https://golang.org/dl/)
+- **Go 1.25 or later** - [Download Go](https://golang.org/dl/)
 - **Kubernetes cluster access** - Local (minikube/kind) or remote cluster
 - **kubectl configured** - `kubectl get nodes` should work
 
@@ -297,7 +297,7 @@ chmod +x ~/bin/frank
 **Problem**: Go module path issue.
 
 **Solutions**:
-1. Ensure you're using Go 1.21 or later
+1. Ensure you're using Go 1.25 or later
 2. Check your Go module configuration
 3. Try clearing module cache: `go clean -modcache`
 

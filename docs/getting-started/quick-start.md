@@ -6,7 +6,7 @@ Get up and running with Frank in minutes! This guide will walk you through build
 
 Before you begin, make sure you have:
 
-- **Go 1.21 or later** - [Download Go](https://golang.org/dl/)
+- **Go 1.25 or later** - [Download Go](https://golang.org/dl/)
 - **Kubernetes cluster access** - Local (minikube/kind) or remote cluster
 - **kubectl configured** - `kubectl get nodes` should work
 
