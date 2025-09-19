@@ -73,6 +73,37 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, configN
 	}, nil
 }
 
+// DeployManifestContent applies manifest content from memory to Kubernetes
+func (d *Deployer) DeployManifestContent(manifestContent []byte, stackName string, configNamespace string, timeout time.Duration) (*DeployResult, error) {
+	// Parse and prepare the manifest content
+	obj, gvr, err := d.parseAndPrepareManifestContent(manifestContent, stackName, configNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply the resource to Kubernetes
+	operation, result, err := d.applyResource(obj, gvr, stackName)
+	if err != nil {
+		return &DeployResult{
+			Resource:  obj,
+			Operation: operation,
+			Status:    "failed",
+			Error:     err,
+			Timestamp: time.Now(),
+		}, nil
+	}
+
+	// Poll for completion and return result
+	status := d.determineStatus(operation, gvr, result, stackName, timeout)
+	return &DeployResult{
+		Resource:  result,
+		Operation: operation,
+		Status:    status,
+		Error:     nil,
+		Timestamp: time.Now(),
+	}, nil
+}
+
 // parseAndPrepareManifest reads, parses, and prepares a manifest file
 func (d *Deployer) parseAndPrepareManifest(manifestPath, stackName, configNamespace string) (*unstructured.Unstructured, schema.GroupVersionResource, error) {
 	// Read the manifest file
@@ -83,6 +114,38 @@ func (d *Deployer) parseAndPrepareManifest(manifestPath, stackName, configNamesp
 
 	// Parse the YAML content
 	decoder := k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifestData), 4096)
+	var obj unstructured.Unstructured
+	if err := decoder.Decode(&obj); err != nil {
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("error parsing YAML: %v", err)
+	}
+
+	// Set namespace
+	namespace := d.determineNamespace(obj.GetNamespace(), configNamespace)
+	obj.SetNamespace(namespace)
+
+	// Add stack name annotation
+	d.addStackAnnotation(&obj, stackName)
+
+	// Get the GVR (GroupVersionResource) for the resource
+	gvr, err := d.getGVR(obj.GetAPIVersion(), obj.GetKind())
+	if err != nil {
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("failed to get GVR for %s/%s: %v", obj.GetAPIVersion(), obj.GetKind(), err)
+	}
+
+	d.logger.Debug("Starting apply operation",
+		"stack", stackName,
+		"apiVersion", obj.GetAPIVersion(),
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", namespace)
+
+	return &obj, gvr, nil
+}
+
+// parseAndPrepareManifestContent parses and prepares manifest content from memory
+func (d *Deployer) parseAndPrepareManifestContent(manifestContent []byte, stackName, configNamespace string) (*unstructured.Unstructured, schema.GroupVersionResource, error) {
+	// Parse the YAML content
+	decoder := k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifestContent), 4096)
 	var obj unstructured.Unstructured
 	if err := decoder.Decode(&obj); err != nil {
 		return nil, schema.GroupVersionResource{}, fmt.Errorf("error parsing YAML: %v", err)

@@ -7,6 +7,9 @@ Simple multi-environment management of Kubernetes resources.
 
 Frank is a CLI tool for applying templated Kubernetes manifest files to clusters with intelligent configuration management, stack-based filtering.
 
+> [!CAUTION]
+> This project is pre-release! It's still actively being tested. An official GitHub release will be added once it's ready.
+
 ## Quick Start
 
 ### 1. Building
@@ -92,8 +95,11 @@ frank apply dev
 - Waits patiently for deployments to be ready
 - Runs multiple deployments in parallel for speed
 
-### **Jinja Templating**
+### **Template Support**
 Dynamic manifest generation with powerful templating:
+
+#### **Jinja Templating**
+Advanced templating with conditionals, loops, and filters:
 
 ```yaml
 # manifests/app-deployment.jinja
@@ -121,6 +127,37 @@ spec:
         image: {{ image_name }}:{{ version }}
         ports:
         - containerPort: {{ port | default(80) }}
+```
+
+#### **HCL Templating**
+Simple variable substitution with familiar syntax:
+
+```yaml
+# manifests/app-deployment.hcl
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${stack_name}
+  labels:
+    app.kubernetes.io/name: ${app}
+    app.kubernetes.io/version: ${version}
+    app.kubernetes.io/managed-by: frank
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ${app}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ${app}
+        app.kubernetes.io/version: ${version}
+    spec:
+      containers:
+      - name: ${app}
+        image: ${image_name}:${version}
+        ports:
+        - containerPort: ${port}
 ```
 
 **Template Context Variables:**
@@ -234,13 +271,15 @@ version: 1.2.3                 # Optional: Version for templates
 
 ### Template Files
 
-Frank supports Jinja templating for dynamic manifest generation:
+Frank supports both Jinja and HCL templating for dynamic manifest generation:
 
 **Supported Extensions:**
 - `.jinja` - Jinja template files
 - `.j2` - Alternative Jinja extension
+- `.hcl` - HCL template files
+- `.tf` - Terraform-style HCL files
 
-**Example:**
+**Jinja Example:**
 ```yaml
 # config/app.yaml
 manifest: app-deployment.jinja  # Points to template file
@@ -255,6 +294,23 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ app_name }}
     app.kubernetes.io/version: {{ version }}
+```
+
+**HCL Example:**
+```yaml
+# config/app.yaml
+manifest: app-deployment.hcl    # Points to template file
+app: myapp
+version: 1.2.3
+
+# manifests/app-deployment.hcl
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${stack_name}
+  labels:
+    app.kubernetes.io/name: ${app}
+    app.kubernetes.io/version: ${version}
 ```
 
 ### Environment Variables
@@ -347,7 +403,7 @@ frank-cli/
 │   ├── deploy/               # Deployment orchestration
 │   ├── kubernetes/           # Kubernetes operations
 │   ├── stack/                # Stack management
-│   └── template/             # Jinja templating engine
+│   └── template/             # Jinja and HCL templating engine
 ├── config/                   # Example configurations
 ├── manifests/                # Example manifests
 └── main.go                   # Application entry point
@@ -357,7 +413,7 @@ frank-cli/
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.25 or later
 - Kubernetes cluster access
 - kubectl configured
 

@@ -6,7 +6,7 @@ Get up and running with Frank in minutes! This guide will walk you through build
 
 Before you begin, make sure you have:
 
-- **Go 1.21 or later** - [Download Go](https://golang.org/dl/)
+- **Go 1.25 or later** - [Download Go](https://golang.org/dl/)
 - **Kubernetes cluster access** - Local (minikube/kind) or remote cluster
 - **kubectl configured** - `kubectl get nodes` should work
 
@@ -183,6 +183,62 @@ frank apply
 
 This will create both a Deployment and Service with dynamic names and labels!
 
+## Using HCL Templates
+
+For simpler templating needs, you can use HCL (HashiCorp Configuration Language) syntax:
+
+### 1. Update App Config
+
+Update `config/app.yaml`:
+
+```yaml
+manifest: app-deployment.hcl
+app: myapp
+version: 1.2.3
+vars:
+  replicas: 3
+  port: 8080
+```
+
+### 2. Create HCL Template
+
+Create `manifests/app-deployment.hcl`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${stack_name}
+  labels:
+    app.kubernetes.io/name: ${app}
+    app.kubernetes.io/version: ${version}
+    app.kubernetes.io/managed-by: frank
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ${app}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ${app}
+        app.kubernetes.io/version: ${version}
+    spec:
+      containers:
+      - name: ${app}
+        image: nginx:${version}
+        ports:
+        - containerPort: ${port}
+```
+
+### 3. Deploy HCL Template
+
+```bash
+frank apply
+```
+
+HCL templates use `${variable}` syntax and are perfect for simple variable substitution without complex logic.
+
 ## Stack Filtering
 
 Frank supports powerful stack filtering:
@@ -219,6 +275,7 @@ Now that you have Frank working, explore these topics:
 
 - [Configuration](configuration.md) - Learn about all configuration options
 - [Jinja Templating](../features/jinja-templating.md) - Master dynamic templates
+- [HCL Templating](../features/hcl-templating.md) - Simple variable substitution
 - [Stack Filtering](../features/stack-filtering.md) - Organize your deployments
 - [Multi-Environment Setup](../advanced/multi-environment.md) - Scale to multiple environments
 
