@@ -128,7 +128,7 @@ func (d *Deployer) parseAndPrepareManifest(manifestPath, stackName, configNamesp
 	d.addManagedByLabel(&obj)
 
 	// Get the GVR (GroupVersionResource) for the resource
-	gvr, err := d.getGVR(obj.GetAPIVersion(), obj.GetKind())
+	gvr, err := d.GetGVR(obj.GetAPIVersion(), obj.GetKind())
 	if err != nil {
 		return nil, schema.GroupVersionResource{}, fmt.Errorf("failed to get GVR for %s/%s: %v", obj.GetAPIVersion(), obj.GetKind(), err)
 	}
@@ -161,7 +161,7 @@ func (d *Deployer) parseAndPrepareManifestContent(manifestContent []byte, stackN
 	d.addManagedByLabel(&obj)
 
 	// Get the GVR (GroupVersionResource) for the resource
-	gvr, err := d.getGVR(obj.GetAPIVersion(), obj.GetKind())
+	gvr, err := d.GetGVR(obj.GetAPIVersion(), obj.GetKind())
 	if err != nil {
 		return nil, schema.GroupVersionResource{}, fmt.Errorf("failed to get GVR for %s/%s: %v", obj.GetAPIVersion(), obj.GetKind(), err)
 	}
@@ -237,7 +237,7 @@ func (d *Deployer) applyResource(obj *unstructured.Unstructured, gvr schema.Grou
 // determineStatus determines the final status of the deployment
 func (d *Deployer) determineStatus(operation string, gvr schema.GroupVersionResource, result *unstructured.Unstructured, stackName string, timeout time.Duration) string {
 	if operation == "created" || operation == "applied" {
-		status, err := d.pollForCompletion(gvr, result.GetNamespace(), result.GetName(), stackName, result, timeout)
+		status, err := d.pollForCompletion(gvr, result.GetNamespace(), result.GetName(), stackName, timeout)
 		if err != nil {
 			d.logger.Warn("Error polling for completion", "stack", stackName, "error", err)
 		}
@@ -249,8 +249,8 @@ func (d *Deployer) determineStatus(operation string, gvr schema.GroupVersionReso
 	return "ready"
 }
 
-// getGVR converts an API version and kind to a GroupVersionResource
-func (d *Deployer) getGVR(apiVersion, kind string) (schema.GroupVersionResource, error) {
+// GetGVR converts an API version and kind to a GroupVersionResource
+func (d *Deployer) GetGVR(apiVersion, kind string) (schema.GroupVersionResource, error) {
 	// Parse the API version
 	gv, err := schema.ParseGroupVersion(apiVersion)
 	if err != nil {
@@ -285,4 +285,9 @@ func (d *Deployer) getGVR(apiVersion, kind string) (schema.GroupVersionResource,
 		Version:  gv.Version,
 		Resource: resource,
 	}, nil
+}
+
+// GetResource gets a resource from Kubernetes
+func (d *Deployer) GetResource(gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
+	return d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }

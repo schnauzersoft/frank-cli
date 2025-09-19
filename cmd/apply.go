@@ -26,7 +26,7 @@ var applyCmd = &cobra.Command{
 	Short: "Apply templated Kubernetes manifest files to clusters",
 	Long: `Deploy your Kubernetes applications with style and precision.
 
-Frank reads your config files and deploys manifests to your clusters,
+frank reads your config files and deploys manifests to your clusters,
 handling the heavy lifting of resource management and status monitoring.
 
 What apply does:

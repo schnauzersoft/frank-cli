@@ -1,16 +1,24 @@
-# Frank CLI
+<div align="center">
 
-![Test](https://github.com/schnauzersoft/frank-cli/actions/workflows/test.yml/badge.svg)
+# frank
+
+## Simple multi-environment management of Kubernetes resources.
+
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8.svg?logo=go)](https://tip.golang.org/doc/go1.25)
 [![Go Report Card](https://goreportcard.com/badge/github.com/schnauzersoft/frank-cli)](https://goreportcard.com/report/github.com/schnauzersoft/frank-cli)
-
-Simple multi-environment management of Kubernetes resources.
-
-Frank is a CLI tool for applying templated Kubernetes manifest files to clusters with intelligent configuration management, stack-based filtering.
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
+[![Test Status](https://github.com/schnauzersoft/frank-cli/actions/workflows/test.yml/badge.svg)](https://github.com/schnauzersoft/frank-cli/actions/workflows/test.yml)
 
 > [!CAUTION]
 > This project is pre-release! It's still actively being tested. An official GitHub release will be added once it's ready.
 
+</div>
+
+---
+
 ## Quick Start
+
+frank is a CLI tool for applying templated Kubernetes manifest files to clusters with intelligent configuration management, stack-based filtering.
 
 ### 1. Building
 
@@ -271,7 +279,7 @@ version: 1.2.3                 # Optional: Version for templates
 
 ### Template Files
 
-Frank supports both Jinja and HCL templating for dynamic manifest generation:
+frank supports both Jinja and HCL templating for dynamic manifest generation:
 
 **Supported Extensions:**
 - `.jinja` - Jinja template files
