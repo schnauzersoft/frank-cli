@@ -2,9 +2,7 @@
 
 <img src="docs/assets/logo.png" alt="frank">
 
-# frank
-
-## Simple multi-environment management of Kubernetes resources.
+Simple multi-environment management of Kubernetes resources.
 
 [![Go](https://img.shields.io/badge/go-1.25-00ADD8.svg?logo=go)](https://tip.golang.org/doc/go1.25)
 [![Go Report Card](https://goreportcard.com/badge/github.com/schnauzersoft/frank-cli)](https://goreportcard.com/report/github.com/schnauzersoft/frank-cli)
