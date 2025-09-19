@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/logo.png" alt="frank">
+
 # frank
 
 ## Simple multi-environment management of Kubernetes resources.
@@ -9,12 +11,12 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
 [![Test Status](https://github.com/schnauzersoft/frank-cli/actions/workflows/test.yml/badge.svg)](https://github.com/schnauzersoft/frank-cli/actions/workflows/test.yml)
 
-> [!CAUTION]
-> This project is pre-release! It's still actively being tested. An official GitHub release will be added once it's ready.
-
 </div>
 
 ---
+
+> [!CAUTION]
+> This project is pre-release! It's still actively being tested. An official GitHub release will be added once it's ready.
 
 ## Quick Start
 
