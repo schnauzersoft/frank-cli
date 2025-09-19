@@ -26,6 +26,7 @@ import (
 type ManifestConfig struct {
 	Manifest string                 `yaml:"manifest"`
 	Timeout  time.Duration          `yaml:"timeout"`
+	Version  string                 `yaml:"version"`
 	Vars     map[string]interface{} `yaml:"vars"`
 }
 
@@ -339,13 +340,19 @@ func (d *Deployer) renderTemplate(manifestPath string, stackInfo *stack.StackInf
 	d.logger.Debug("Rendering template", "template", manifestPath)
 
 	// Build template context
+	// Use manifest config version if specified, otherwise fall back to stack version
+	version := manifestConfig.Version
+	if version == "" {
+		version = stackInfo.Version
+	}
+
 	templateContext := d.templateRenderer.BuildTemplateContext(
 		stackInfo.Name,
 		stackInfo.Context,
 		stackInfo.ProjectCode,
 		stackInfo.Namespace,
 		stackInfo.App,
-		stackInfo.Version,
+		version,
 		manifestConfig.Vars,
 	)
 
