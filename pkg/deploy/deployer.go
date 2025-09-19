@@ -5,7 +5,9 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package deploy
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -327,7 +329,9 @@ func (d *Deployer) findAndPrepareManifest(manifestConfig *ManifestConfig, stackI
 	if d.templateRenderer.IsTemplateFile(manifestPath) {
 		content, result := d.renderTemplate(manifestPath, stackInfo, manifestConfig, timestamp)
 		if result.Error != nil {
-			return "", result
+			// If template rendering fails, fall back to treating it as a regular file
+			d.logger.Warn("Template rendering failed, treating as regular file", "template", manifestPath, "error", result.Error)
+			return manifestPath, DeploymentResult{}
 		}
 		return content, DeploymentResult{}
 	}
@@ -612,22 +616,56 @@ func (d *Deployer) extractManifestContent(manifestData interface{}) ([]byte, err
 
 // extractManifestNamespace extracts namespace from manifest YAML
 func (d *Deployer) extractManifestNamespace(manifestContent []byte) (string, error) {
-	var manifest map[string]interface{}
-	if err := yaml.Unmarshal(manifestContent, &manifest); err != nil {
-		return "", fmt.Errorf("failed to parse manifest YAML: %v", err)
+	// Handle multi-document YAML (for HCL templates that generate multiple resources)
+	decoder := yaml.NewDecoder(bytes.NewReader(manifestContent))
+	
+	for {
+		var manifest map[string]any
+		err := decoder.Decode(&manifest)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", d.handleYAMLParsingError(err, manifestContent)
+		}
+
+		// Check if this document has a namespace
+		if namespace := d.extractNamespaceFromManifest(manifest); namespace != "" {
+			return namespace, nil
+		}
 	}
 
-	metadata, hasMetadata := manifest["metadata"].(map[string]interface{})
+	return "", nil
+}
+
+// handleYAMLParsingError handles YAML parsing errors with smart error detection
+func (d *Deployer) handleYAMLParsingError(err error, manifestContent []byte) error {
+	// Check if this looks like raw HCL content
+	contentStr := string(manifestContent)
+	if d.isHCLContent(contentStr) {
+		return fmt.Errorf("manifest appears to be an HCL template that failed to render - check template syntax and variables")
+	}
+	return fmt.Errorf("invalid YAML format in manifest: %v", err)
+}
+
+// isHCLContent checks if content looks like HCL
+func (d *Deployer) isHCLContent(content string) bool {
+	return strings.Contains(content, "resource \"") || strings.Contains(content, "kubernetes_")
+}
+
+// extractNamespaceFromManifest extracts namespace from a single manifest document
+func (d *Deployer) extractNamespaceFromManifest(manifest map[string]any) string {
+	metadata, hasMetadata := manifest["metadata"].(map[string]any)
 	if !hasMetadata {
-		return "", nil
+		return ""
 	}
 
 	manifestNamespace, hasManifestNamespace := metadata["namespace"].(string)
-	if !hasManifestNamespace || manifestNamespace == "" {
-		return "", nil
+	if hasManifestNamespace && manifestNamespace != "" {
+		return manifestNamespace
 	}
 
-	return manifestNamespace, nil
+	return ""
 }
 
 // checkNamespaceConflict checks for namespace conflicts

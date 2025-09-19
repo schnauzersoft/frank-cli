@@ -11,7 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/nikolalohinski/gonja"
+	"github.com/zclconf/go-cty/cty"
 	"gopkg.in/yaml.v3"
 )
 
@@ -135,11 +138,258 @@ func (r *Renderer) RenderHCLManifest(templatePath string, context map[string]int
 		return nil, fmt.Errorf("failed to read template file: %v", err)
 	}
 
-	// For now, we'll do simple string substitution
-	// This is a simplified implementation - in practice, you'd want more sophisticated HCL parsing
-	rendered := r.substituteHCLVariables(string(templateContent), context)
+	// First, substitute variables in the HCL content
+	substitutedContent := r.substituteHCLVariables(string(templateContent), context)
 
-	return []byte(rendered), nil
+	// Parse the HCL content
+	parser := hclparse.NewParser()
+	file, diags := parser.ParseHCL([]byte(substitutedContent), "template.hcl")
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("HCL parsing errors: %v", diags)
+	}
+
+	// Convert HCL to Kubernetes YAML
+	kubernetesYAML, err := r.convertHCLToKubernetesYAML(file.Body, context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert HCL to Kubernetes YAML: %v", err)
+	}
+
+	return []byte(kubernetesYAML), nil
+}
+
+// convertHCLToKubernetesYAML converts HCL body to Kubernetes YAML
+func (r *Renderer) convertHCLToKubernetesYAML(body hcl.Body, context map[string]interface{}) (string, error) {
+	// Parse the HCL body to extract resource blocks
+	content, diags := body.Content(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: "resource", LabelNames: []string{"type", "name"}},
+		},
+	})
+	if diags.HasErrors() {
+		return "", fmt.Errorf("failed to parse HCL body: %v", diags)
+	}
+
+	var kubernetesResources []string
+
+	// Process each resource block
+	for _, block := range content.Blocks {
+		if block.Type == "resource" {
+			resourceYAML, err := r.convertResourceBlockToYAML(block)
+			if err != nil {
+				return "", fmt.Errorf("failed to convert resource block: %v", err)
+			}
+			kubernetesResources = append(kubernetesResources, resourceYAML)
+		}
+	}
+
+	// Join all resources with document separators
+	return strings.Join(kubernetesResources, "\n---\n"), nil
+}
+
+// convertResourceBlockToYAML converts a single HCL resource block to Kubernetes YAML
+func (r *Renderer) convertResourceBlockToYAML(block *hcl.Block) (string, error) {
+	resourceType := block.Labels[0]
+	_ = block.Labels[1] // resourceName - not used in this simplified implementation
+
+	// Map HCL resource types to Kubernetes API versions and kinds
+	resourceMappings := map[string]struct {
+		apiVersion string
+		kind       string
+	}{
+		"kubernetes_deployment": {
+			apiVersion: "apps/v1",
+			kind:       "Deployment",
+		},
+		"kubernetes_service": {
+			apiVersion: "v1",
+			kind:       "Service",
+		},
+		"kubernetes_config_map": {
+			apiVersion: "v1",
+			kind:       "ConfigMap",
+		},
+		"kubernetes_secret": {
+			apiVersion: "v1",
+			kind:       "Secret",
+		},
+		"kubernetes_ingress": {
+			apiVersion: "networking.k8s.io/v1",
+			kind:       "Ingress",
+		},
+		"kubernetes_persistent_volume": {
+			apiVersion: "v1",
+			kind:       "PersistentVolume",
+		},
+		"kubernetes_persistent_volume_claim": {
+			apiVersion: "v1",
+			kind:       "PersistentVolumeClaim",
+		},
+	}
+
+	mapping, exists := resourceMappings[resourceType]
+	if !exists {
+		return "", fmt.Errorf("unsupported resource type: %s", resourceType)
+	}
+
+	// Convert HCL attributes to Kubernetes YAML
+	kubernetesObj := map[string]interface{}{
+		"apiVersion": mapping.apiVersion,
+		"kind":       mapping.kind,
+	}
+
+	// Parse the resource body
+	resourceContent, diags := block.Body.Content(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{Name: "metadata", Required: false},
+			{Name: "spec", Required: false},
+		},
+	})
+	if diags.HasErrors() {
+		return "", fmt.Errorf("failed to parse resource body: %v", diags)
+	}
+
+	// Convert metadata
+	if metadataAttr, exists := resourceContent.Attributes["metadata"]; exists {
+		metadata, err := r.convertHCLValueToGo(metadataAttr.Expr)
+		if err != nil {
+			return "", fmt.Errorf("failed to convert metadata: %v", err)
+		}
+		kubernetesObj["metadata"] = metadata
+	}
+
+	// Convert spec
+	if specAttr, exists := resourceContent.Attributes["spec"]; exists {
+		spec, err := r.convertHCLValueToGo(specAttr.Expr)
+		if err != nil {
+			return "", fmt.Errorf("failed to convert spec: %v", err)
+		}
+		kubernetesObj["spec"] = spec
+	}
+
+	// Convert to YAML
+	yamlBytes, err := yaml.Marshal(kubernetesObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal to YAML: %v", err)
+	}
+
+	return string(yamlBytes), nil
+}
+
+// convertHCLValueToGo converts an HCL expression to a Go value
+func (r *Renderer) convertHCLValueToGo(expr hcl.Expression) (interface{}, error) {
+	// This is a simplified implementation that handles basic HCL expressions
+	// We'll use the HCL evaluator to convert expressions to Go values
+
+	// Create a simple evaluation context
+	ctx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{},
+	}
+
+	// Evaluate the expression
+	val, diags := expr.Value(ctx)
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to evaluate HCL expression: %v", diags)
+	}
+
+	// Convert cty.Value to Go interface{}
+	return r.ctyValueToGo(val)
+}
+
+// ctyValueToGo converts a cty.Value to a Go interface{}
+func (r *Renderer) ctyValueToGo(val cty.Value) (interface{}, error) {
+	if val.IsNull() {
+		return nil, nil
+	}
+
+	if !val.IsKnown() {
+		return nil, fmt.Errorf("value is not known")
+	}
+
+	switch val.Type() {
+	case cty.String:
+		return val.AsString(), nil
+	case cty.Number:
+		return r.convertNumber(val)
+	case cty.Bool:
+		return val.True(), nil
+	case cty.List(cty.String):
+		return r.convertStringList(val)
+	case cty.Map(cty.String):
+		return r.convertStringMap(val)
+	default:
+		return r.convertComplexType(val)
+	}
+}
+
+// convertNumber converts a cty.Number to Go int or float64
+func (r *Renderer) convertNumber(val cty.Value) (interface{}, error) {
+	bigFloat := val.AsBigFloat()
+	if bigFloat.IsInt() {
+		intVal, _ := bigFloat.Int64()
+		return intVal, nil
+	}
+	floatVal, _ := bigFloat.Float64()
+	return floatVal, nil
+}
+
+// convertStringList converts a cty.List(cty.String) to []string
+func (r *Renderer) convertStringList(val cty.Value) ([]string, error) {
+	var result []string
+	for it := val.ElementIterator(); it.Next(); {
+		_, elemVal := it.Element()
+		result = append(result, elemVal.AsString())
+	}
+	return result, nil
+}
+
+// convertStringMap converts a cty.Map(cty.String) to map[string]string
+func (r *Renderer) convertStringMap(val cty.Value) (map[string]string, error) {
+	result := make(map[string]string)
+	for it := val.ElementIterator(); it.Next(); {
+		k, v := it.Element()
+		result[k.AsString()] = v.AsString()
+	}
+	return result, nil
+}
+
+// convertComplexType handles objects, tuples, and other complex types
+func (r *Renderer) convertComplexType(val cty.Value) (interface{}, error) {
+	if val.Type().IsObjectType() {
+		return r.convertObject(val)
+	}
+
+	if val.Type().IsTupleType() {
+		return r.convertTuple(val)
+	}
+
+	return nil, fmt.Errorf("unsupported HCL type: %s", val.Type().FriendlyName())
+}
+
+// convertObject converts a cty.Object to map[string]interface{}
+func (r *Renderer) convertObject(val cty.Value) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	for k, v := range val.AsValueMap() {
+		goVal, err := r.ctyValueToGo(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert object field %s: %v", k, err)
+		}
+		result[k] = goVal
+	}
+	return result, nil
+}
+
+// convertTuple converts a cty.Tuple to []interface{}
+func (r *Renderer) convertTuple(val cty.Value) ([]interface{}, error) {
+	var result []interface{}
+	for it := val.ElementIterator(); it.Next(); {
+		_, elemVal := it.Element()
+		goVal, err := r.ctyValueToGo(elemVal)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert tuple element: %v", err)
+		}
+		result = append(result, goVal)
+	}
+	return result, nil
 }
 
 // substituteHCLVariables performs simple variable substitution in HCL content
