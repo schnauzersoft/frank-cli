@@ -7,6 +7,9 @@ Simple multi-environment management of Kubernetes resources.
 
 Frank is a CLI tool for applying templated Kubernetes manifest files to clusters with intelligent configuration management, stack-based filtering.
 
+> [!CAUTION]
+> This project is pre-release! It's still actively being tested. An official GitHub release will be added once it's ready.
+
 ## Quick Start
 
 ### 1. Building
