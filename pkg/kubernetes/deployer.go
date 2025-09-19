@@ -123,8 +123,9 @@ func (d *Deployer) parseAndPrepareManifest(manifestPath, stackName, configNamesp
 	namespace := d.determineNamespace(obj.GetNamespace(), configNamespace)
 	obj.SetNamespace(namespace)
 
-	// Add stack name annotation
+	// Add stack name annotation and managed-by label
 	d.addStackAnnotation(&obj, stackName)
+	d.addManagedByLabel(&obj)
 
 	// Get the GVR (GroupVersionResource) for the resource
 	gvr, err := d.getGVR(obj.GetAPIVersion(), obj.GetKind())
@@ -155,8 +156,9 @@ func (d *Deployer) parseAndPrepareManifestContent(manifestContent []byte, stackN
 	namespace := d.determineNamespace(obj.GetNamespace(), configNamespace)
 	obj.SetNamespace(namespace)
 
-	// Add stack name annotation
+	// Add stack name annotation and managed-by label
 	d.addStackAnnotation(&obj, stackName)
+	d.addManagedByLabel(&obj)
 
 	// Get the GVR (GroupVersionResource) for the resource
 	gvr, err := d.getGVR(obj.GetAPIVersion(), obj.GetKind())
@@ -193,6 +195,16 @@ func (d *Deployer) addStackAnnotation(obj *unstructured.Unstructured, stackName 
 	}
 	annotations["frankthetank.cloud/stack-name"] = stackName
 	obj.SetAnnotations(annotations)
+}
+
+// addManagedByLabel adds the app.kubernetes.io/managed-by label to the resource
+func (d *Deployer) addManagedByLabel(obj *unstructured.Unstructured) {
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels["app.kubernetes.io/managed-by"] = "frank"
+	obj.SetLabels(labels)
 }
 
 // applyResource applies the resource to Kubernetes
