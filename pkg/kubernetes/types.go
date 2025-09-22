@@ -9,14 +9,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// Deployer handles actual Kubernetes applications
+// Deployer handles actual Kubernetes applications.
 type Deployer struct {
 	dynamicClient dynamic.Interface
 	clientset     kubernetes.Interface
 	logger        *slog.Logger
 }
 
-// DeployResult represents the result of a single Kubernetes resource application
+// DeployResult represents the result of a single Kubernetes resource application.
 type DeployResult struct {
 	Resource  *unstructured.Unstructured
 	Operation string // "created", "applied", "unchanged"
@@ -25,7 +25,7 @@ type DeployResult struct {
 	Timestamp time.Time
 }
 
-// DeleteResult represents the result of a delete operation
+// DeleteResult represents the result of a delete operation.
 type DeleteResult struct {
 	StackName    string
 	ResourceType string

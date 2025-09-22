@@ -17,7 +17,8 @@ func TestExecutor_NewExecutorWithDeployer(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "config")
-	err := os.MkdirAll(configDir, 0755)
+
+	err := os.MkdirAll(configDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
@@ -255,7 +256,8 @@ func TestExecutor_readManifestConfig(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "config")
-	err := os.MkdirAll(configDir, 0755)
+
+	err := os.MkdirAll(configDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
@@ -269,7 +271,7 @@ vars:
   replicas: 3
   environment: test`
 
-	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	err = os.WriteFile(configFile, []byte(configContent), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
@@ -314,12 +316,12 @@ func TestExecutor_findManifestFile(t *testing.T) {
 	configDir := filepath.Join(tempDir, "config")
 	manifestsDir := filepath.Join(tempDir, "manifests")
 
-	err := os.MkdirAll(configDir, 0755)
+	err := os.MkdirAll(configDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
 
-	err = os.MkdirAll(manifestsDir, 0755)
+	err = os.MkdirAll(manifestsDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create manifests directory: %v", err)
 	}
@@ -331,7 +333,7 @@ kind: Deployment
 metadata:
   name: test-deployment`
 
-	err = os.WriteFile(manifestFile, []byte(manifestContent), 0644)
+	err = os.WriteFile(manifestFile, []byte(manifestContent), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write manifest file: %v", err)
 	}
@@ -360,7 +362,8 @@ func TestExecutor_filterConfigFilesByStack(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "config")
-	err := os.MkdirAll(configDir, 0755)
+
+	err := os.MkdirAll(configDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
@@ -375,7 +378,8 @@ func TestExecutor_filterConfigFilesByStack(t *testing.T) {
 
 	for _, file := range configFiles {
 		content := `manifest: test.yaml`
-		err = os.WriteFile(file, []byte(content), 0644)
+
+		err = os.WriteFile(file, []byte(content), 0o600)
 		if err != nil {
 			t.Fatalf("Failed to write config file %s: %v", file, err)
 		}
@@ -408,12 +412,13 @@ func TestExecutor_filterConfigFilesByStack(t *testing.T) {
 	}
 }
 
-// Helper function to create a test executor
+// Helper function to create a test executor.
 func createTestExecutor(t *testing.T) *Executor {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "config")
-	err := os.MkdirAll(configDir, 0755)
+
+	err := os.MkdirAll(configDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
@@ -425,6 +430,7 @@ func createTestExecutor(t *testing.T) *Executor {
 
 	// Create executor with nil deployer to avoid kubeconfig requirement
 	var mockDeployer *kubernetes.Deployer = nil
+
 	executor := NewExecutorWithDeployer(configDir, logger, mockDeployer)
 
 	return executor

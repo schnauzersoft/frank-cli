@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// deleteCmd represents the delete command
+// deleteCmd represents the delete command.
 var deleteCmd = &cobra.Command{
 	Use:   "delete [stack]",
 	Short: "Delete resources managed by frank",
@@ -47,6 +47,7 @@ Target specific stacks:
 		if !yes {
 			if !confirmAction("delete", stackFilter) {
 				fmt.Println("Canceled")
+
 				return
 			}
 		}
@@ -60,6 +61,7 @@ Target specific stacks:
 		deployer, err := kubernetes.NewDeployerForDelete(logger)
 		if err != nil {
 			logger.Error("Failed to create Kubernetes deployer", "error", err)
+
 			return
 		}
 
@@ -67,6 +69,7 @@ Target specific stacks:
 		results, err := deployer.DeleteAllManagedResources(stackFilter)
 		if err != nil {
 			logger.Error("Delete process failed", "error", err)
+
 			return
 		}
 

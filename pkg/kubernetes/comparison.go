@@ -4,7 +4,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// needsUpdate checks if a resource needs updating
 func (d *Deployer) needsUpdate(existing, desired *unstructured.Unstructured) bool {
 	// Compare only the spec fields that actually matter for deployments
 	existingSpec, _, _ := unstructured.NestedMap(existing.Object, "spec")
@@ -32,11 +31,11 @@ func (d *Deployer) needsUpdate(existing, desired *unstructured.Unstructured) boo
 	}
 }
 
-// deploymentNeedsUpdate checks if a deployment needs updating by comparing key fields
-func (d *Deployer) deploymentNeedsUpdate(existing, desired map[string]interface{}) bool {
+func (d *Deployer) deploymentNeedsUpdate(existing, desired map[string]any) bool {
 	// Compare replicas
 	if !d.compareField(existing, desired, "replicas") {
 		d.logger.Debug("Deployment needs update: replicas differ", "existing", existing["replicas"], "desired", desired["replicas"])
+
 		return true
 	}
 
@@ -46,15 +45,16 @@ func (d *Deployer) deploymentNeedsUpdate(existing, desired map[string]interface{
 
 	if !d.templateEqual(existingTemplate, desiredTemplate) {
 		d.logger.Debug("Deployment needs update: template differs")
+
 		return true
 	}
 
 	d.logger.Debug("Deployment is up to date")
+
 	return false
 }
 
-// statefulSetNeedsUpdate checks if a statefulset needs updating
-func (d *Deployer) statefulSetNeedsUpdate(existing, desired map[string]interface{}) bool {
+func (d *Deployer) statefulSetNeedsUpdate(existing, desired map[string]any) bool {
 	// Compare replicas
 	if !d.compareField(existing, desired, "replicas") {
 		return true
@@ -67,8 +67,7 @@ func (d *Deployer) statefulSetNeedsUpdate(existing, desired map[string]interface
 	return !d.templateEqual(existingTemplate, desiredTemplate)
 }
 
-// daemonSetNeedsUpdate checks if a daemonset needs updating
-func (d *Deployer) daemonSetNeedsUpdate(existing, desired map[string]interface{}) bool {
+func (d *Deployer) daemonSetNeedsUpdate(existing, desired map[string]any) bool {
 	// Compare template
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
@@ -76,8 +75,7 @@ func (d *Deployer) daemonSetNeedsUpdate(existing, desired map[string]interface{}
 	return !d.templateEqual(existingTemplate, desiredTemplate)
 }
 
-// jobNeedsUpdate checks if a job needs updating
-func (d *Deployer) jobNeedsUpdate(existing, desired map[string]interface{}) bool {
+func (d *Deployer) jobNeedsUpdate(existing, desired map[string]any) bool {
 	// Compare template
 	existingTemplate, _, _ := unstructured.NestedMap(existing, "template")
 	desiredTemplate, _, _ := unstructured.NestedMap(desired, "template")
@@ -85,8 +83,7 @@ func (d *Deployer) jobNeedsUpdate(existing, desired map[string]interface{}) bool
 	return !d.templateEqual(existingTemplate, desiredTemplate)
 }
 
-// templateEqual compares pod templates for equality
-func (d *Deployer) templateEqual(existing, desired map[string]interface{}) bool {
+func (d *Deployer) templateEqual(existing, desired map[string]any) bool {
 	if existing == nil || desired == nil {
 		return (existing == nil) != (desired == nil)
 	}
@@ -118,8 +115,7 @@ func (d *Deployer) templateEqual(existing, desired map[string]interface{}) bool 
 	return true
 }
 
-// containersEqual compares container slices for equality
-func (d *Deployer) containersEqual(existing, desired []interface{}) bool {
+func (d *Deployer) containersEqual(existing, desired []any) bool {
 	if len(existing) != len(desired) {
 		return false
 	}
@@ -133,14 +129,13 @@ func (d *Deployer) containersEqual(existing, desired []interface{}) bool {
 	return true
 }
 
-// compareSingleContainer compares a single container for equality
-func (d *Deployer) compareSingleContainer(existing, desired interface{}) bool {
-	existingMap, ok := existing.(map[string]interface{})
+func (d *Deployer) compareSingleContainer(existing, desired any) bool {
+	existingMap, ok := existing.(map[string]any)
 	if !ok {
 		return false
 	}
 
-	desiredMap, ok := desired.(map[string]interface{})
+	desiredMap, ok := desired.(map[string]any)
 	if !ok {
 		return false
 	}
@@ -159,8 +154,7 @@ func (d *Deployer) compareSingleContainer(existing, desired interface{}) bool {
 	return d.compareContainerOtherFields(existingMap, desiredMap)
 }
 
-// compareContainerBasicFields compares basic container fields
-func (d *Deployer) compareContainerBasicFields(existing, desired map[string]interface{}) bool {
+func (d *Deployer) compareContainerBasicFields(existing, desired map[string]any) bool {
 	// Compare container name
 	if !d.compareField(existing, desired, "name") {
 		return false
@@ -174,27 +168,26 @@ func (d *Deployer) compareContainerBasicFields(existing, desired map[string]inte
 	return true
 }
 
-// compareContainerPorts compares container ports
-func (d *Deployer) compareContainerPorts(existing, desired map[string]interface{}) bool {
+func (d *Deployer) compareContainerPorts(existing, desired map[string]any) bool {
 	existingPorts, _, _ := unstructured.NestedSlice(existing, "ports")
 	desiredPorts, _, _ := unstructured.NestedSlice(desired, "ports")
 
 	return d.comparePorts(existingPorts, desiredPorts)
 }
 
-// compareContainerOtherFields compares other important container fields
-func (d *Deployer) compareContainerOtherFields(existing, desired map[string]interface{}) bool {
+func (d *Deployer) compareContainerOtherFields(existing, desired map[string]any) bool {
 	fieldsToCompare := []string{"command", "args", "workingDir", "env", "resources", "volumeMounts"}
 	for _, field := range fieldsToCompare {
 		if !d.compareField(existing, desired, field) {
 			return false
 		}
 	}
+
 	return true
 }
 
-// comparePorts compares port slices, handling default TCP protocol
-func (d *Deployer) comparePorts(existing, desired []interface{}) bool {
+// comparePorts compares port slices, handling default TCP protocol.
+func (d *Deployer) comparePorts(existing, desired []any) bool {
 	if len(existing) != len(desired) {
 		return false
 	}
@@ -208,14 +201,13 @@ func (d *Deployer) comparePorts(existing, desired []interface{}) bool {
 	return true
 }
 
-// compareSinglePort compares a single port for equality
-func (d *Deployer) compareSinglePort(existing, desired interface{}) bool {
-	existingMap, ok := existing.(map[string]interface{})
+func (d *Deployer) compareSinglePort(existing, desired any) bool {
+	existingMap, ok := existing.(map[string]any)
 	if !ok {
 		return false
 	}
 
-	desiredMap, ok := desired.(map[string]interface{})
+	desiredMap, ok := desired.(map[string]any)
 	if !ok {
 		return false
 	}
@@ -229,36 +221,34 @@ func (d *Deployer) compareSinglePort(existing, desired interface{}) bool {
 	return d.comparePortOtherFields(existingMap, desiredMap)
 }
 
-// comparePortProtocol compares port protocol with default handling
-func (d *Deployer) comparePortProtocol(existing, desired map[string]interface{}) bool {
+func (d *Deployer) comparePortProtocol(existing, desired map[string]any) bool {
 	existingProtocol := d.getPortProtocol(existing)
 	desiredProtocol := d.getPortProtocol(desired)
 
 	return existingProtocol == desiredProtocol
 }
 
-// getPortProtocol gets the port protocol with default TCP handling
-func (d *Deployer) getPortProtocol(portMap map[string]interface{}) string {
+func (d *Deployer) getPortProtocol(portMap map[string]any) string {
 	protocol := portMap["protocol"]
 	if protocol == nil {
 		return "TCP"
 	}
+
 	return protocol.(string)
 }
 
-// comparePortOtherFields compares other port fields
-func (d *Deployer) comparePortOtherFields(existing, desired map[string]interface{}) bool {
+func (d *Deployer) comparePortOtherFields(existing, desired map[string]any) bool {
 	fieldsToCompare := []string{"containerPort", "name", "hostPort"}
 	for _, field := range fieldsToCompare {
 		if !d.compareField(existing, desired, field) {
 			return false
 		}
 	}
+
 	return true
 }
 
-// compareField compares a specific field between two maps
-func (d *Deployer) compareField(existing, desired map[string]interface{}, field string) bool {
+func (d *Deployer) compareField(existing, desired map[string]any, field string) bool {
 	existingVal := existing[field]
 	desiredVal := desired[field]
 
@@ -266,33 +256,33 @@ func (d *Deployer) compareField(existing, desired map[string]interface{}, field 
 	if existingVal == nil && desiredVal == nil {
 		return true
 	}
+
 	if existingVal == nil || desiredVal == nil {
 		return false
 	}
 
 	// For slices and maps, use deep comparison
-	switch existingVal.(type) {
-	case []interface{}:
-		existingSlice, _ := existingVal.([]interface{})
-		desiredSlice, ok := desiredVal.([]interface{})
+	switch existingTyped := existingVal.(type) {
+	case []any:
+		desiredSlice, ok := desiredVal.([]any)
 		if !ok {
 			return false
 		}
-		return d.slicesEqual(existingSlice, desiredSlice)
-	case map[string]interface{}:
-		existingMap, _ := existingVal.(map[string]interface{})
-		desiredMap, ok := desiredVal.(map[string]interface{})
+
+		return d.slicesEqual(existingTyped, desiredSlice)
+	case map[string]any:
+		desiredMap, ok := desiredVal.(map[string]any)
 		if !ok {
 			return false
 		}
-		return d.mapsEqual(existingMap, desiredMap)
+
+		return d.mapsEqual(existingTyped, desiredMap)
 	default:
 		return existingVal == desiredVal
 	}
 }
 
-// mapsEqual performs deep comparison of two maps
-func (d *Deployer) mapsEqual(existing, desired map[string]interface{}) bool {
+func (d *Deployer) mapsEqual(existing, desired map[string]any) bool {
 	if len(existing) != len(desired) {
 		return false
 	}
@@ -311,8 +301,7 @@ func (d *Deployer) mapsEqual(existing, desired map[string]interface{}) bool {
 	return true
 }
 
-// slicesEqual performs deep comparison of two slices
-func (d *Deployer) slicesEqual(existing, desired []interface{}) bool {
+func (d *Deployer) slicesEqual(existing, desired []any) bool {
 	if len(existing) != len(desired) {
 		return false
 	}
@@ -326,20 +315,21 @@ func (d *Deployer) slicesEqual(existing, desired []interface{}) bool {
 	return true
 }
 
-// valuesEqual performs deep comparison of two values
-func (d *Deployer) valuesEqual(existing, desired interface{}) bool {
+func (d *Deployer) valuesEqual(existing, desired any) bool {
 	switch existingVal := existing.(type) {
-	case map[string]interface{}:
-		desiredMap, ok := desired.(map[string]interface{})
+	case map[string]any:
+		desiredMap, ok := desired.(map[string]any)
 		if !ok {
 			return false
 		}
+
 		return d.mapsEqual(existingVal, desiredMap)
-	case []interface{}:
-		desiredSlice, ok := desired.([]interface{})
+	case []any:
+		desiredSlice, ok := desired.([]any)
 		if !ok {
 			return false
 		}
+
 		return d.slicesEqual(existingVal, desiredSlice)
 	default:
 		return existingVal == desired

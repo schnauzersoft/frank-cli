@@ -34,6 +34,14 @@
 
     [:octicons-arrow-right-24: Smart Deployments](features/smart-deployments.md)
 
+-   :material-link:{ .lg .middle } **Dependency Management**
+
+    ---
+
+    Define execution order with stack dependencies
+
+    [:octicons-arrow-right-24: Dependency Management](features/dependency-management.md)
+
 </div>
 
 ## What is Frank?
@@ -44,6 +52,7 @@ Frank is a CLI tool for applying templated Kubernetes manifest files to clusters
 - **📝 Jinja Templating** - Dynamic manifest generation with powerful templating
 - **🏷️ Stack Management** - Organize and filter deployments by environment
 - **🔧 Configuration Inheritance** - Hierarchical config management
+- **🔗 Dependency Management** - Define execution order with stack dependencies
 - **🧹 Resource Cleanup** - Surgical precision resource deletion
 - **⚡ Parallel Processing** - Fast multi-stack deployments
 
@@ -66,6 +75,9 @@ frank apply dev/app.yaml       # Deploy specific configuration file
 
 ### Hierarchical Configuration
 Organize your environments with inheritance and override patterns that make sense for your team.
+
+### Dependency Management
+Define execution order for your stacks using the `depends_on` field, ensuring dependent stacks are deployed only after their dependencies complete successfully.
 
 ## Quick Example
 

@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// confirmAction prompts the user for confirmation
+// confirmAction prompts the user for confirmation.
 func confirmAction(action, scope string) bool {
 	// Determine what to show in the prompt
 	var promptText string

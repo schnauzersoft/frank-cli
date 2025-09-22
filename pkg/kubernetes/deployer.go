@@ -21,18 +21,18 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// NewDeployer creates a new Kubernetes applier
+// NewDeployer creates a new Kubernetes applier.
 func NewDeployer(config *rest.Config, logger *slog.Logger) (*Deployer, error) {
 	// Create dynamic client for generic resource operations
 	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create dynamic client: %v", err)
+		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
 	// Create typed client for specific operations
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create clientset: %v", err)
+		return nil, fmt.Errorf("failed to create clientset: %w", err)
 	}
 
 	return &Deployer{
@@ -42,8 +42,8 @@ func NewDeployer(config *rest.Config, logger *slog.Logger) (*Deployer, error) {
 	}, nil
 }
 
-// DeployManifest applies a single manifest file to Kubernetes
-func (d *Deployer) DeployManifest(manifestPath string, stackName string, configNamespace string, timeout time.Duration) (*DeployResult, error) {
+// DeployManifest applies a single manifest file to Kubernetes.
+func (d *Deployer) DeployManifest(manifestPath, stackName, configNamespace string, timeout time.Duration) (*DeployResult, error) {
 	// Parse and prepare the manifest
 	obj, gvr, err := d.parseAndPrepareManifest(manifestPath, stackName, configNamespace)
 	if err != nil {
@@ -53,6 +53,7 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, configN
 	// Apply the resource to Kubernetes
 	operation, result, err := d.applyResource(obj, gvr, stackName)
 	if err != nil {
+		//nolint:nilerr
 		return &DeployResult{
 			Resource:  obj,
 			Operation: operation,
@@ -64,6 +65,7 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, configN
 
 	// Poll for completion and return result
 	status := d.determineStatus(operation, gvr, result, stackName, timeout)
+
 	return &DeployResult{
 		Resource:  result,
 		Operation: operation,
@@ -73,8 +75,8 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, configN
 	}, nil
 }
 
-// DeployManifestContent applies manifest content from memory to Kubernetes
-func (d *Deployer) DeployManifestContent(manifestContent []byte, stackName string, configNamespace string, timeout time.Duration) (*DeployResult, error) {
+// DeployManifestContent applies manifest content from memory to Kubernetes.
+func (d *Deployer) DeployManifestContent(manifestContent []byte, stackName, configNamespace string, timeout time.Duration) (*DeployResult, error) {
 	// Parse and prepare the manifest content
 	obj, gvr, err := d.parseAndPrepareManifestContent(manifestContent, stackName, configNamespace)
 	if err != nil {
@@ -84,6 +86,7 @@ func (d *Deployer) DeployManifestContent(manifestContent []byte, stackName strin
 	// Apply the resource to Kubernetes
 	operation, result, err := d.applyResource(obj, gvr, stackName)
 	if err != nil {
+		//nolint:nilerr
 		return &DeployResult{
 			Resource:  obj,
 			Operation: operation,
@@ -95,6 +98,7 @@ func (d *Deployer) DeployManifestContent(manifestContent []byte, stackName strin
 
 	// Poll for completion and return result
 	status := d.determineStatus(operation, gvr, result, stackName, timeout)
+
 	return &DeployResult{
 		Resource:  result,
 		Operation: operation,
@@ -104,19 +108,22 @@ func (d *Deployer) DeployManifestContent(manifestContent []byte, stackName strin
 	}, nil
 }
 
-// parseAndPrepareManifest reads, parses, and prepares a manifest file
+// parseAndPrepareManifest reads, parses, and prepares a manifest file.
 func (d *Deployer) parseAndPrepareManifest(manifestPath, stackName, configNamespace string) (*unstructured.Unstructured, schema.GroupVersionResource, error) {
 	// Read the manifest file
 	manifestData, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return nil, schema.GroupVersionResource{}, fmt.Errorf("error reading manifest file: %v", err)
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("error reading manifest file: %w", err)
 	}
 
 	// Parse the YAML content
 	decoder := k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifestData), 4096)
+
 	var obj unstructured.Unstructured
-	if err := decoder.Decode(&obj); err != nil {
-		return nil, schema.GroupVersionResource{}, fmt.Errorf("error parsing YAML: %v", err)
+
+	err = decoder.Decode(&obj)
+	if err != nil {
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("error parsing YAML: %w", err)
 	}
 
 	// Set namespace
@@ -130,7 +137,7 @@ func (d *Deployer) parseAndPrepareManifest(manifestPath, stackName, configNamesp
 	// Get the GVR (GroupVersionResource) for the resource
 	gvr, err := d.GetGVR(obj.GetAPIVersion(), obj.GetKind())
 	if err != nil {
-		return nil, schema.GroupVersionResource{}, fmt.Errorf("failed to get GVR for %s/%s: %v", obj.GetAPIVersion(), obj.GetKind(), err)
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("failed to get GVR for %s/%s: %w", obj.GetAPIVersion(), obj.GetKind(), err)
 	}
 
 	d.logger.Debug("Starting apply operation",
@@ -143,13 +150,18 @@ func (d *Deployer) parseAndPrepareManifest(manifestPath, stackName, configNamesp
 	return &obj, gvr, nil
 }
 
-// parseAndPrepareManifestContent parses and prepares manifest content from memory
+// parseAndPrepareManifestContent parses and prepares manifest content from memory.
 func (d *Deployer) parseAndPrepareManifestContent(manifestContent []byte, stackName, configNamespace string) (*unstructured.Unstructured, schema.GroupVersionResource, error) {
 	// Parse the YAML content
 	decoder := k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifestContent), 4096)
+
 	var obj unstructured.Unstructured
-	if err := decoder.Decode(&obj); err != nil {
-		return nil, schema.GroupVersionResource{}, fmt.Errorf("error parsing YAML: %v", err)
+
+	var err error
+
+	err = decoder.Decode(&obj)
+	if err != nil {
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("error parsing YAML: %w", err)
 	}
 
 	// Set namespace
@@ -163,7 +175,7 @@ func (d *Deployer) parseAndPrepareManifestContent(manifestContent []byte, stackN
 	// Get the GVR (GroupVersionResource) for the resource
 	gvr, err := d.GetGVR(obj.GetAPIVersion(), obj.GetKind())
 	if err != nil {
-		return nil, schema.GroupVersionResource{}, fmt.Errorf("failed to get GVR for %s/%s: %v", obj.GetAPIVersion(), obj.GetKind(), err)
+		return nil, schema.GroupVersionResource{}, fmt.Errorf("failed to get GVR for %s/%s: %w", obj.GetAPIVersion(), obj.GetKind(), err)
 	}
 
 	d.logger.Debug("Starting apply operation",
@@ -176,49 +188,53 @@ func (d *Deployer) parseAndPrepareManifestContent(manifestContent []byte, stackN
 	return &obj, gvr, nil
 }
 
-// determineNamespace determines the namespace to use
+// determineNamespace determines the namespace to use.
 func (d *Deployer) determineNamespace(manifestNamespace, configNamespace string) string {
 	if manifestNamespace != "" {
 		return manifestNamespace
 	}
+
 	if configNamespace != "" {
 		return configNamespace
 	}
+
 	return "default"
 }
 
-// addStackAnnotation adds the stack name annotation to the resource
+// addStackAnnotation adds the stack name annotation to the resource.
 func (d *Deployer) addStackAnnotation(obj *unstructured.Unstructured, stackName string) {
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
+
 	annotations["frankthetank.cloud/stack-name"] = stackName
 	obj.SetAnnotations(annotations)
 }
 
-// addManagedByLabel adds the app.kubernetes.io/managed-by label to the resource
+// addManagedByLabel adds the app.kubernetes.io/managed-by label to the resource.
 func (d *Deployer) addManagedByLabel(obj *unstructured.Unstructured) {
 	labels := obj.GetLabels()
 	if labels == nil {
 		labels = make(map[string]string)
 	}
+
 	labels["app.kubernetes.io/managed-by"] = "frank"
 	obj.SetLabels(labels)
 }
 
-// applyResource applies the resource to Kubernetes
+// applyResource applies the resource to Kubernetes.
 func (d *Deployer) applyResource(obj *unstructured.Unstructured, gvr schema.GroupVersionResource, stackName string) (string, *unstructured.Unstructured, error) {
 	namespace := obj.GetNamespace()
 	name := obj.GetName()
 
 	// Check if resource already exists
 	existing, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-
 	if err != nil {
 		// Resource doesn't exist, create it
 		d.logger.Warn("Resource does not exist, creating", "stack", stackName, "name", name, "namespace", namespace)
 		result, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Create(context.TODO(), obj, metav1.CreateOptions{})
+
 		return "created", result, err
 	}
 
@@ -227,6 +243,7 @@ func (d *Deployer) applyResource(obj *unstructured.Unstructured, gvr schema.Grou
 		d.logger.Warn("Updating existing resource", "stack", stackName, "name", name, "namespace", namespace)
 		obj.SetResourceVersion(existing.GetResourceVersion()) // Set resource version for update
 		result, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+
 		return "applied", result, err
 	}
 
@@ -234,27 +251,29 @@ func (d *Deployer) applyResource(obj *unstructured.Unstructured, gvr schema.Grou
 	return "no-change", existing, nil
 }
 
-// determineStatus determines the final status of the deployment
+// determineStatus determines the final status of the deployment.
 func (d *Deployer) determineStatus(operation string, gvr schema.GroupVersionResource, result *unstructured.Unstructured, stackName string, timeout time.Duration) string {
 	if operation == "created" || operation == "applied" {
 		status, err := d.pollForCompletion(gvr, result.GetNamespace(), result.GetName(), stackName, timeout)
 		if err != nil {
 			d.logger.Warn("Error polling for completion", "stack", stackName, "error", err)
 		}
+
 		return status
 	}
 
 	// No changes made, resource is already up to date
 	d.logger.Info("Resource is already up to date", "stack", stackName, "name", result.GetName(), "namespace", result.GetNamespace())
+
 	return "ready"
 }
 
-// GetGVR converts an API version and kind to a GroupVersionResource
+// GetGVR converts an API version and kind to a GroupVersionResource.
 func (d *Deployer) GetGVR(apiVersion, kind string) (schema.GroupVersionResource, error) {
 	// Parse the API version
 	gv, err := schema.ParseGroupVersion(apiVersion)
 	if err != nil {
-		return schema.GroupVersionResource{}, fmt.Errorf("invalid API version: %v", err)
+		return schema.GroupVersionResource{}, fmt.Errorf("invalid API version: %w", err)
 	}
 
 	// Map common kinds to their resource names
@@ -287,7 +306,7 @@ func (d *Deployer) GetGVR(apiVersion, kind string) (schema.GroupVersionResource,
 	}, nil
 }
 
-// GetResource gets a resource from Kubernetes
+// GetResource gets a resource from Kubernetes.
 func (d *Deployer) GetResource(gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
 	return d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }

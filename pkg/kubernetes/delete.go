@@ -13,17 +13,17 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// NewDeployerForDelete creates a new Kubernetes deployer specifically for delete operations
+// NewDeployerForDelete creates a new Kubernetes deployer specifically for delete operations.
 func NewDeployerForDelete(logger *slog.Logger) (*Deployer, error) {
 	config, err := createKubernetesConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Kubernetes config: %v", err)
+		return nil, fmt.Errorf("failed to create Kubernetes config: %w", err)
 	}
 
 	return NewDeployer(config, logger)
 }
 
-// DeleteAllManagedResources finds and deletes all resources with frankthetank.cloud/stack-name annotation
+// DeleteAllManagedResources finds and deletes all resources with frankthetank.cloud/stack-name annotation.
 func (d *Deployer) DeleteAllManagedResources(stackFilter string) ([]DeleteResult, error) {
 	var results []DeleteResult
 
@@ -37,7 +37,7 @@ func (d *Deployer) DeleteAllManagedResources(stackFilter string) ([]DeleteResult
 	return results, nil
 }
 
-// getResourceTypesToDelete returns the list of resource types to check for frank-managed resources
+// getResourceTypesToDelete returns the list of resource types to check for frank-managed resources.
 func (d *Deployer) getResourceTypesToDelete() []struct {
 	Group    string
 	Version  string
@@ -63,13 +63,14 @@ func (d *Deployer) getResourceTypesToDelete() []struct {
 	}
 }
 
-// deleteResourcesOfType deletes all frank-managed resources of a specific type
+// deleteResourcesOfType deletes all frank-managed resources of a specific type.
 func (d *Deployer) deleteResourcesOfType(rt struct {
 	Group    string
 	Version  string
 	Resource string
 	Kind     string
-}, stackFilter string) []DeleteResult {
+}, stackFilter string,
+) []DeleteResult {
 	var results []DeleteResult
 
 	gvr := schema.GroupVersionResource{
@@ -82,6 +83,7 @@ func (d *Deployer) deleteResourcesOfType(rt struct {
 	resourceList, err := d.dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		d.logger.Warn("Failed to list resources", "resource", rt.Resource, "error", err)
+
 		return results
 	}
 
@@ -96,7 +98,7 @@ func (d *Deployer) deleteResourcesOfType(rt struct {
 	return results
 }
 
-// shouldDeleteResource checks if a resource should be deleted based on annotations and filter
+// shouldDeleteResource checks if a resource should be deleted based on annotations and filter.
 func (d *Deployer) shouldDeleteResource(item unstructured.Unstructured, stackFilter string) bool {
 	annotations := item.GetAnnotations()
 	if annotations == nil {
@@ -116,13 +118,14 @@ func (d *Deployer) shouldDeleteResource(item unstructured.Unstructured, stackFil
 	return true
 }
 
-// deleteResource deletes a single resource and returns the result
+// deleteResource deletes a single resource and returns the result.
 func (d *Deployer) deleteResource(item unstructured.Unstructured, rt struct {
 	Group    string
 	Version  string
 	Resource string
 	Kind     string
-}, gvr schema.GroupVersionResource) DeleteResult {
+}, gvr schema.GroupVersionResource,
+) DeleteResult {
 	annotations := item.GetAnnotations()
 	stackName := annotations["frankthetank.cloud/stack-name"]
 	namespace := item.GetNamespace()
@@ -143,7 +146,6 @@ func (d *Deployer) deleteResource(item unstructured.Unstructured, rt struct {
 		Namespace:    namespace,
 		Error:        err,
 	}
-
 	if err != nil {
 		d.logger.Error("Failed to delete resource", "error", err)
 	} else {
@@ -153,7 +155,7 @@ func (d *Deployer) deleteResource(item unstructured.Unstructured, rt struct {
 	return result
 }
 
-// createKubernetesConfig creates a Kubernetes REST config
+// createKubernetesConfig creates a Kubernetes REST config.
 func createKubernetesConfig() (*rest.Config, error) {
 	// Load kubeconfig from default location
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
@@ -168,7 +170,7 @@ func createKubernetesConfig() (*rest.Config, error) {
 	return config, nil
 }
 
-// matchesStackFilter checks if a stack name matches the given filter
+// matchesStackFilter checks if a stack name matches the given filter.
 func (d *Deployer) matchesStackFilter(stackName, filter string) bool {
 	// Exact match
 	if stackName == filter {
