@@ -27,17 +27,17 @@ This includes the version number, commit SHA, and build timestamp.`,
 		if version == "" {
 			version = "dev"
 		}
-		
+
 		commit := CommitSHA
 		if commit == "" {
 			commit = "unknown"
 		}
-		
+
 		buildTime := BuildTime
 		if buildTime == "" {
 			buildTime = "unknown"
 		}
-		
+
 		fmt.Printf("frank version %s\n", version)
 		fmt.Printf("Commit: %s\n", commit)
 		fmt.Printf("Built: %s\n", buildTime)
