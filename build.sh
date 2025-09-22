@@ -3,7 +3,7 @@
 set -e
 
 VERSION=${1:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}
-COSIGN_PASSWORD=${2:-""}
+COSIGN_PWD=${COSIGN_PASSWORD:-""}
 COMMIT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
