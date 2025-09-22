@@ -7,7 +7,7 @@ Simple multi-environment management of Kubernetes resources.
 [![Go](https://img.shields.io/badge/go-1.25-00ADD8.svg?logo=go)](https://tip.golang.org/doc/go1.25)
 [![Go Report Card](https://goreportcard.com/badge/github.com/schnauzersoft/frank-cli)](https://goreportcard.com/report/github.com/schnauzersoft/frank-cli)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
-[![Test Status](https://github.com/schnauzersoft/frank-cli/actions/workflows/test.yml/badge.svg)](https://github.com/schnauzersoft/frank-cli/actions/workflows/ci.yml)
+[![Test Status](https://github.com/schnauzersoft/frank-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/schnauzersoft/frank-cli/actions/workflows/ci.yml)
 
 </div>
 
