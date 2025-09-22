@@ -13,9 +13,6 @@ Simple multi-environment management of Kubernetes resources.
 
 ---
 
-> [!CAUTION]
-> This project is pre-release! It's still actively being tested. An official GitHub release will be added once it's ready.
-
 ## Overview
 
 **frank** is a CLI tool for managing resources in Kubernetes. This project is inspired by many different projects, such as:

@@ -5,7 +5,11 @@
 !/.gitignore
 !/.github/**
 !.golangci.yml
+!cliff.toml
+!build.sh
+!cosign.pub
 
+# Go
 !*.go
 !go.sum
 !go.mod
