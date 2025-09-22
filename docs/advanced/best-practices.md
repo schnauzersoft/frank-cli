@@ -1,10 +1,10 @@
 # Best Practices
 
-This guide covers best practices for using Frank CLI effectively in production environments.
+This guide covers best practices for using **frank** effectively in production environments.
 
-## Configuration Management
+## Configuration
 
-### 1. Use Hierarchical Structure
+### 1. Hierarchical Structure
 
 **Good** - Clear hierarchy with inheritance:
 ```
@@ -36,7 +36,6 @@ config/
 
 **Good** - Minimal app config:
 ```yaml
-# config/app.yaml
 manifest: app-deployment.jinja
 app: web
 version: 1.2.3
@@ -44,7 +43,6 @@ version: 1.2.3
 
 **Avoid** - Duplicating base config:
 ```yaml
-# config/app.yaml
 manifest: app-deployment.jinja
 context: dev-cluster
 project_code: myapp
@@ -57,7 +55,6 @@ version: 1.2.3
 
 **Good** - Use environment variables:
 ```bash
-# Don't put secrets in config files
 export DOCKER_REGISTRY_PASSWORD=secret123
 export API_KEY=your-api-key
 ```
@@ -75,8 +72,8 @@ api_key: your-api-key                # DON'T DO THIS!
 
 **Good** - Clear variable names:
 ```yaml
-image: {{ app_image }}:{{ app_version }}
-replicas: {{ app_replicas | default(3) }}
+image: {{ image }}:{{ version }}
+replicas: {{ replicas | default(3) }}
 ```
 
 **Avoid** - Unclear variable names:
@@ -108,7 +105,6 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ app_name }}
     app.kubernetes.io/version: {{ version }}
-    app.kubernetes.io/managed-by: frank
 ```
 
 **Avoid** - Custom labels:
@@ -128,11 +124,11 @@ spec:
   replicas: {{ replicas | default(3) }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ app_name }}
+      app.kubernetes.io/name: {{ app }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ app_name }}
+        app.kubernetes.io/name: {{ app }}
 ```
 
 **Avoid** - Too much logic:
@@ -143,196 +139,46 @@ spec:
 
 ## Deployment Strategies
 
-### 1. Test in Dev First
+### 1. Test in Dev First (Preferably locally)
 
 **Good** - Progressive deployment:
 ```bash
-# Test in dev first
-frank apply dev
+$ frank apply dev
 
-# Then staging
-frank apply staging
+$ frank apply staging
 
-# Finally production
-frank apply prod
+$ frank apply prod
 ```
 
 **Avoid** - Direct to production:
 ```bash
-# DON'T DO THIS!
-frank apply prod
+# DON'T DO THIS WITHOUT TESTING IN DEV FIRST!
+$ frank apply prod
 ```
 
 ### 2. Use Stack Filtering
 
 **Good** - Deploy specific applications:
 ```bash
-frank apply dev/web
-frank apply dev/api
+$ frank apply dev/web
+$ frank apply dev/api
 ```
 
 **Avoid** - Deploy everything:
 ```bash
-frank apply dev  # Unless you really need everything
+$ frank apply dev  # Unless you really need everything
 ```
 
 ### 3. Use Confirmation Prompts
 
 **Good** - Always confirm before deploying:
 ```bash
-frank apply  # Shows confirmation with scope
+$ frank apply  # Shows confirmation with scope
 ```
 
 **Avoid** - Skip confirmation in development:
 ```bash
-frank apply --yes  # Only in CI/CD
-```
-
-## Resource Management
-
-### 1. Use Appropriate Resource Limits
-
-**Good** - Set resource limits:
-```yaml
-resources:
-  requests:
-    memory: "256Mi"
-    cpu: "100m"
-  limits:
-    memory: "512Mi"
-    cpu: "500m"
-```
-
-**Avoid** - No resource limits:
-```yaml
-# No resources section - can cause issues
-```
-
-### 2. Use Health Checks
-
-**Good** - Include health checks:
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 8080
-  initialDelaySeconds: 30
-  periodSeconds: 10
-readinessProbe:
-  httpGet:
-    path: /ready
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 5
-```
-
-### 3. Use ConfigMaps for Configuration
-
-**Good** - Use ConfigMaps:
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ stack_name }}-config
-data:
-  app.properties: |
-    server.port={{ port | default(8080) }}
-    app.name={{ app_name }}
----
-apiVersion: apps/v1
-kind: Deployment
-spec:
-  template:
-    spec:
-      containers:
-      - name: {{ app_name }}
-        envFrom:
-        - configMapRef:
-            name: {{ stack_name }}-config
-```
-
-## Security Best Practices
-
-### 1. Use Namespace Isolation
-
-**Good** - Separate namespaces:
-```yaml
-# config/dev/config.yaml
-namespace: myapp-dev
-
-# config/prod/config.yaml
-namespace: myapp-prod
-```
-
-### 2. Use Service Accounts
-
-**Good** - Create service accounts:
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ stack_name }}-sa
-  namespace: {{ namespace }}
----
-apiVersion: apps/v1
-kind: Deployment
-spec:
-  template:
-    spec:
-      serviceAccountName: {{ stack_name }}-sa
-```
-
-### 3. Use Resource Quotas
-
-**Good** - Set resource quotas:
-```yaml
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: {{ stack_name }}-quota
-  namespace: {{ namespace }}
-spec:
-  hard:
-    requests.cpu: "2"
-    requests.memory: 4Gi
-    limits.cpu: "4"
-    limits.memory: 8Gi
-```
-
-## Monitoring and Observability
-
-### 1. Use Consistent Labeling
-
-**Good** - Consistent labels:
-```yaml
-metadata:
-  labels:
-    app.kubernetes.io/name: {{ app_name }}
-    app.kubernetes.io/version: {{ version }}
-    app.kubernetes.io/managed-by: frank
-    environment: {{ context }}
-```
-
-### 2. Include Monitoring Annotations
-
-**Good** - Add monitoring annotations:
-```yaml
-metadata:
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "8080"
-    prometheus.io/path: "/metrics"
-```
-
-### 3. Use Structured Logging
-
-**Good** - Structured logs:
-```yaml
-env:
-- name: LOG_LEVEL
-  value: "{{ log_level | default('info') }}"
-- name: LOG_FORMAT
-  value: "json"
+$ frank apply --yes  # Only in CI/CD
 ```
 
 ## CI/CD Best Practices
@@ -351,28 +197,15 @@ env:
   run: frank apply prod --yes
 ```
 
-### 2. Use Secrets Management
-
-**Good** - Use Kubernetes secrets:
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ stack_name }}-secrets
-type: Opaque
-stringData:
-  password: "{{ secret_password }}"
-```
-
-### 3. Use Rollback Strategies
+### 2. Use Rollback Strategies
 
 **Good** - Plan for rollbacks:
 ```bash
 # Keep previous version available
-kubectl get deployments -l app.kubernetes.io/name=web
+$ kubectl get deployments -l app.kubernetes.io/name=web
 
 # Rollback if needed
-kubectl rollout undo deployment/web
+$ kubectl rollout undo deployment/web
 ```
 
 ## Performance Optimization
@@ -395,21 +228,8 @@ timeout: 1h   # Too high - slow feedback
 
 **Good** - Deploy multiple apps in parallel:
 ```bash
-# Frank handles this automatically
-frank apply dev  # Deploys all dev apps in parallel
-```
-
-### 3. Use Resource Optimization
-
-**Good** - Optimize resource usage:
-```yaml
-resources:
-  requests:
-    memory: "128Mi"  # Start small
-    cpu: "50m"
-  limits:
-    memory: "256Mi"  # Reasonable limit
-    cpu: "200m"
+# frank handles this automatically
+$ frank apply dev  # Deploys all dev apps in parallel
 ```
 
 ## Troubleshooting
@@ -418,62 +238,15 @@ resources:
 
 **Good** - Enable debug when needed:
 ```bash
-FRANK_LOG_LEVEL=debug frank apply dev
+$ FRANK_LOG_LEVEL=debug frank apply dev
 ```
 
 ### 2. Monitor Resource Status
 
 **Good** - Check resource status:
 ```bash
-kubectl get pods -l app.kubernetes.io/managed-by=frank
-kubectl describe deployment web
-```
-
-### 3. Use Health Checks
-
-**Good** - Implement health checks:
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 8080
-  initialDelaySeconds: 30
-  periodSeconds: 10
-```
-
-## Documentation
-
-### 1. Document Configuration
-
-**Good** - Document config options:
-```yaml
-# config/config.yaml
-# Base configuration for all environments
-project_code: myapp        # Project identifier
-namespace: myapp          # Default namespace
-timeout: 10m              # Default deployment timeout
-```
-
-### 2. Document Template Variables
-
-**Good** - Document template variables:
-```yaml
-# Available template variables:
-# - stack_name: Generated stack name
-# - app_name: App name from config
-# - version: Version from config
-# - context: Kubernetes context
-# - namespace: Target namespace
-```
-
-### 3. Document Deployment Process
-
-**Good** - Document deployment steps:
-```bash
-# Deployment process:
-# 1. Test in dev: frank apply dev
-# 2. Test in staging: frank apply staging
-# 3. Deploy to prod: frank apply prod
+$ kubectl get pods -l app.kubernetes.io/managed-by=frank
+$ kubectl describe deployment web
 ```
 
 ## Common Anti-Patterns
@@ -501,18 +274,5 @@ spec:
 
 ```bash
 # DON'T DO THIS!
-frank apply prod --yes  # Without testing first
+$ frank apply prod --yes  # Without testing first
 ```
-
-### 4. Don't Ignore Resource Limits
-
-```yaml
-# DON'T DO THIS!
-# No resources section - can cause cluster issues
-```
-
-## Next Steps
-
-- [Multi-Environment Setup](multi-environment.md) - Configure multiple environments
-- [CI/CD Integration](ci-cd.md) - Set up automated deployments
-- [Debugging](debugging.md) - Troubleshoot deployment issues
