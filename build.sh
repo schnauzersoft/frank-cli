@@ -27,10 +27,6 @@ echo "Clean version: ${CLEAN_VERSION}"
 echo "Targets: ${#TARGETS[@]}"
 if [ -n "$COSIGN_PASSWORD" ]; then
     echo "Cosign signing: enabled"
-    if [ ! -f "cosign.key" ]; then
-        echo "Warning: cosign.key not found. Signing will fail."
-        echo "Generate keys with: cosign generate-key-pair"
-    fi
 else
     echo "Cosign signing: disabled"
 fi
@@ -67,7 +63,7 @@ for target in "${TARGETS[@]}"; do
     
     if [ -n "$COSIGN_PASSWORD" ]; then
         echo "  Signing with cosign..."
-        echo "$COSIGN_PASSWORD" | cosign sign-blob --key cosign.key --output-signature "dist/frank-${CLEAN_VERSION}-${os}-${arch}.tar.gz.sig" "dist/frank-${CLEAN_VERSION}-${os}-${arch}.tar.gz" -y
+        echo "$COSIGN_PASSWORD" | cosign sign-blob --yes --key /tmp/cosign.key --output-signature "dist/frank-${CLEAN_VERSION}-${os}-${arch}.tar.gz.sig" "dist/frank-${CLEAN_VERSION}-${os}-${arch}.tar.gz"
         if [ $? -eq 0 ]; then
             echo "  ✓ Signed: frank-${CLEAN_VERSION}-${os}-${arch}.tar.gz"
         else

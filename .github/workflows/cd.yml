@@ -40,10 +40,14 @@ jobs:
           go-version-file: "go.mod"
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
+      - name: Store Cosign key
+        run: 'echo "$COSIGN_KEY" > /tmp/cosign.key'
+        shell: bash
+        env:
+          COSIGN_KEY: ${{secrets.COSIGN_KEY}}
       - name: Build
         run: ./build.sh
         env:
-          COSIGN_KEY: ${{secrets.COSIGN_KEY}}
           COSIGN_PASSWORD: ${{secrets.COSIGN_PASSWORD}}
       - name: Upload binaries
         uses: svenstaro/upload-release-action@v2
