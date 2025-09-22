@@ -1,6 +1,6 @@
 # Dependency Management
 
-Frank supports stack dependencies through the `depends_on` configuration field, allowing you to define execution order for your deployments. This ensures that dependent stacks are deployed only after their dependencies have been successfully deployed.
+**frank** supports stack dependencies through the `depends_on` configuration field, allowing you to define execution order for your deployments. This ensures that dependent stacks are deployed only after their dependencies have been successfully deployed.
 
 ## Configuration
 
@@ -114,7 +114,7 @@ depends_on:
 
 ### Circular Dependencies
 
-Frank detects and prevents circular dependencies:
+**frank** detects and prevents circular dependencies:
 
 ```yaml
 # This will cause an error
