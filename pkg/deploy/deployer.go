@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/schnauzersoft/frank-cli/pkg/kubernetes"
@@ -26,10 +25,11 @@ import (
 
 // ManifestConfig represents manifest-specific configuration
 type ManifestConfig struct {
-	Manifest string                 `yaml:"manifest"`
-	Timeout  time.Duration          `yaml:"timeout"`
-	Version  string                 `yaml:"version"`
-	Vars     map[string]interface{} `yaml:"vars"`
+	Manifest  string         `yaml:"manifest"`
+	Timeout   time.Duration  `yaml:"timeout"`
+	Version   string         `yaml:"version"`
+	Vars      map[string]any `yaml:"vars"`
+	DependsOn []string       `yaml:"depends_on"`
 }
 
 // DeploymentResult represents the result of a deployment operation
@@ -72,7 +72,7 @@ func NewDeployer(configDir string, logger *slog.Logger) (*Deployer, error) {
 	}, nil
 }
 
-// DeployAll performs parallel application of all manifest configs
+// DeployAll performs application of all manifest configs in dependency order
 func (d *Deployer) DeployAll(stackFilter string) ([]DeploymentResult, error) {
 	// Find all YAML config files
 	configFiles, err := d.findAllConfigFiles()
@@ -94,35 +94,64 @@ func (d *Deployer) DeployAll(stackFilter string) ([]DeploymentResult, error) {
 
 	d.logger.Debug("Found config files", "count", len(configFiles), "files", configFiles, "filter", stackFilter)
 
-	// Create channels for results and errors
-	results := make(chan DeploymentResult, len(configFiles))
-	var wg sync.WaitGroup
-
-	// Apply each config file in parallel
-	for _, configFile := range configFiles {
-		wg.Add(1)
-		go func(file string) {
-			defer wg.Done()
-			d.logger.Debug("Starting apply", "config_file", file)
-			result := d.deploySingleConfig(file)
-			results <- result
-		}(configFile)
+	// Collect stack info and dependencies for all config files
+	stacksWithDeps, err := d.collectStacksWithDependencies(configFiles)
+	if err != nil {
+		return nil, fmt.Errorf("error collecting stack info and dependencies: %v", err)
 	}
 
-	// Wait for all applies to complete
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
+	// Resolve dependencies and get execution order
+	orderedStacks, err := stack.ResolveDependencies(stacksWithDeps)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving dependencies: %v", err)
+	}
 
-	// Collect results
+	d.logger.Debug("Resolved execution order", "stacks", len(orderedStacks))
+
+	// Execute stacks in dependency order
 	var deploymentResults []DeploymentResult
-	for result := range results {
+	for _, stackInfo := range orderedStacks {
+		d.logger.Debug("Starting apply", "config_file", stackInfo.ConfigPath, "stack", stackInfo.Name)
+		result := d.deploySingleConfig(stackInfo.ConfigPath)
 		deploymentResults = append(deploymentResults, result)
+
+		// If deployment failed, we might want to stop or continue depending on requirements
+		if result.Error != nil {
+			d.logger.Error("Deployment failed", "stack", stackInfo.Name, "error", result.Error)
+			// For now, continue with other deployments, but this could be configurable
+		}
 	}
 
 	d.logger.Debug("All applies completed", "total", len(deploymentResults))
 	return deploymentResults, nil
+}
+
+// collectStacksWithDependencies collects stack information and dependencies for all config files
+func (d *Deployer) collectStacksWithDependencies(configFiles []string) ([]stack.StackWithDependencies, error) {
+	var stacksWithDeps []stack.StackWithDependencies
+
+	for _, configFile := range configFiles {
+		// Get stack info
+		stackInfo, err := stack.GetStackInfo(configFile)
+		if err != nil {
+			d.logger.Warn("Failed to get stack info", "config_file", configFile, "error", err)
+			continue
+		}
+
+		// Get manifest config to extract dependencies
+		manifestConfig, err := d.readManifestConfig(configFile)
+		if err != nil {
+			d.logger.Warn("Failed to read manifest config", "config_file", configFile, "error", err)
+			continue
+		}
+
+		stacksWithDeps = append(stacksWithDeps, stack.StackWithDependencies{
+			StackInfo: stackInfo,
+			DependsOn: manifestConfig.DependsOn,
+		})
+	}
+
+	return stacksWithDeps, nil
 }
 
 // findAllConfigFiles finds all YAML config files in the config directory and subdirectories
@@ -310,7 +339,7 @@ func (d *Deployer) readConfigAndStackInfo(configPath string, timestamp time.Time
 }
 
 // findAndPrepareManifest finds the manifest file and renders it if it's a template
-func (d *Deployer) findAndPrepareManifest(manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) (interface{}, DeploymentResult) {
+func (d *Deployer) findAndPrepareManifest(manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) (any, DeploymentResult) {
 	// Find the manifest file
 	manifestPath, err := d.findManifestFile(manifestConfig.Manifest)
 	if err != nil {
@@ -379,7 +408,7 @@ func (d *Deployer) renderTemplate(manifestPath string, stackInfo *stack.StackInf
 }
 
 // validateAndApplyManifest validates namespace and applies the manifest
-func (d *Deployer) validateAndApplyManifest(manifestData interface{}, manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) DeploymentResult {
+func (d *Deployer) validateAndApplyManifest(manifestData any, manifestConfig *ManifestConfig, stackInfo *stack.StackInfo, timestamp time.Time) DeploymentResult {
 	// Set default timeout if not specified
 	timeout := manifestConfig.Timeout
 	if timeout == 0 {
@@ -429,6 +458,19 @@ func (d *Deployer) validateAndApplyManifest(manifestData interface{}, manifestCo
 			Manifest:  manifestConfig.Manifest,
 			Response:  "",
 			Error:     fmt.Errorf("error applying manifest: %v", err),
+			Timestamp: timestamp,
+		}
+	}
+
+	// Check if the deployment result contains an error
+	if result.Error != nil {
+		d.logger.Debug("Deployment failed", "manifest", manifestConfig.Manifest, "error", result.Error)
+		return DeploymentResult{
+			Context:   stackInfo.Context,
+			StackName: stackInfo.Name,
+			Manifest:  manifestConfig.Manifest,
+			Response:  d.formatResponse(result),
+			Error:     fmt.Errorf("deployment failed: %v", result.Error),
 			Timestamp: timestamp,
 		}
 	}
@@ -581,7 +623,7 @@ func (d *Deployer) findJinjaTemplate(manifestPath string) string {
 }
 
 // validateNamespaceConfiguration checks for namespace conflicts between config and manifest
-func (d *Deployer) validateNamespaceConfiguration(manifestData interface{}, configNamespace string) error {
+func (d *Deployer) validateNamespaceConfiguration(manifestData any, configNamespace string) error {
 	manifestContent, err := d.extractManifestContent(manifestData)
 	if err != nil {
 		return err
@@ -596,7 +638,7 @@ func (d *Deployer) validateNamespaceConfiguration(manifestData interface{}, conf
 }
 
 // extractManifestContent extracts content from either file path or byte content
-func (d *Deployer) extractManifestContent(manifestData interface{}) ([]byte, error) {
+func (d *Deployer) extractManifestContent(manifestData any) ([]byte, error) {
 	if manifestPath, ok := manifestData.(string); ok {
 		// It's a file path
 		content, err := os.ReadFile(manifestPath)

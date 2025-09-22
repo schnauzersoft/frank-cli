@@ -86,7 +86,7 @@ func TestBuildTemplateContext(t *testing.T) {
 		namespace      string
 		app            string
 		version        string
-		vars           map[string]interface{}
+		vars           map[string]any
 		expectedKeys   []string
 		expectedValues map[string]string
 	}{
@@ -134,7 +134,7 @@ func TestBuildTemplateContext(t *testing.T) {
 			namespace:   "dev-namespace",
 			app:         "app",
 			version:     "1.2.3",
-			vars: map[string]interface{}{
+			vars: map[string]any{
 				"replicas":    3,
 				"image_name":  "nginx",
 				"port":        8080,
@@ -169,13 +169,13 @@ func TestBuildTemplateContext(t *testing.T) {
 }
 
 // validateTemplateContext validates the template context against expected keys and values
-func validateTemplateContext(t *testing.T, context map[string]interface{}, expectedKeys []string, expectedValues map[string]string) {
+func validateTemplateContext(t *testing.T, context map[string]any, expectedKeys []string, expectedValues map[string]string) {
 	validateExpectedKeys(t, context, expectedKeys)
 	validateExpectedValues(t, context, expectedValues)
 }
 
 // validateExpectedKeys checks that all expected keys exist in the context
-func validateExpectedKeys(t *testing.T, context map[string]interface{}, expectedKeys []string) {
+func validateExpectedKeys(t *testing.T, context map[string]any, expectedKeys []string) {
 	for _, key := range expectedKeys {
 		if _, exists := context[key]; !exists {
 			t.Errorf("Expected key %s not found in context", key)
@@ -184,7 +184,7 @@ func validateExpectedKeys(t *testing.T, context map[string]interface{}, expected
 }
 
 // validateExpectedValues checks specific values in the context
-func validateExpectedValues(t *testing.T, context map[string]interface{}, expectedValues map[string]string) {
+func validateExpectedValues(t *testing.T, context map[string]any, expectedValues map[string]string) {
 	for key, expectedValue := range expectedValues {
 		actualValue, exists := context[key]
 		if !exists {
@@ -199,7 +199,7 @@ func validateExpectedValues(t *testing.T, context map[string]interface{}, expect
 }
 
 // valuesMatch compares actual and expected values, handling type differences
-func valuesMatch(actualValue interface{}, expectedValue string) bool {
+func valuesMatch(actualValue any, expectedValue string) bool {
 	actualStr := fmt.Sprintf("%v", actualValue)
 	return actualStr == expectedValue
 }
@@ -239,7 +239,7 @@ spec:
           value: {{ k8s_namespace }}`
 
 	templatePath := filepath.Join(tempDir, "deployment.jinja")
-	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	err := os.WriteFile(templatePath, []byte(templateContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create template file: %v", err)
 	}
@@ -321,7 +321,7 @@ spec:
           {% endif %}`
 
 	templatePath := filepath.Join(tempDir, "deployment.jinja")
-	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	err := os.WriteFile(templatePath, []byte(templateContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create template file: %v", err)
 	}
@@ -484,7 +484,7 @@ spec:
           value: {{ environment }}`
 
 	templatePath := filepath.Join(tempDir, "deployment.jinja")
-	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	err := os.WriteFile(templatePath, []byte(templateContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create template file: %v", err)
 	}
@@ -492,7 +492,7 @@ spec:
 	renderer := NewRenderer(nil)
 	context := renderer.BuildTemplateContext(
 		"frank-dev-app", "dev", "frank", "dev-namespace", "app", "1.2.3",
-		map[string]interface{}{
+		map[string]any{
 			"replicas":    5,
 			"image_name":  "nginx",
 			"port":        8080,
@@ -572,7 +572,7 @@ func TestRenderHCLManifest(t *testing.T) {
 }`
 
 	templatePath := filepath.Join(tempDir, "deployment.hcl")
-	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	err := os.WriteFile(templatePath, []byte(templateContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create template file: %v", err)
 	}
@@ -580,7 +580,7 @@ func TestRenderHCLManifest(t *testing.T) {
 	renderer := NewRenderer(nil)
 	context := renderer.BuildTemplateContext(
 		"frank-dev-app", "dev", "frank", "dev-namespace", "app", "1.2.3",
-		map[string]interface{}{
+		map[string]any{
 			"replicas":   5,
 			"image_name": "nginx",
 			"port":       8080,
@@ -621,7 +621,7 @@ func testHCLStringSubstitution(t *testing.T, rendered []byte) {
 
 func testHCLYAMLStructure(t *testing.T, rendered []byte) {
 	// Test that the rendered content is valid YAML
-	var manifest map[string]interface{}
+	var manifest map[string]any
 	if err := yaml.Unmarshal(rendered, &manifest); err != nil {
 		t.Fatalf("Rendered HCL template is not valid YAML: %v", err)
 	}
@@ -636,7 +636,7 @@ func testHCLYAMLStructure(t *testing.T, rendered []byte) {
 	testHCLSpec(t, manifest)
 }
 
-func testHCLBasicStructure(t *testing.T, manifest map[string]interface{}) {
+func testHCLBasicStructure(t *testing.T, manifest map[string]any) {
 	if manifest["apiVersion"] != "apps/v1" {
 		t.Errorf("Expected apiVersion 'apps/v1', got '%v'", manifest["apiVersion"])
 	}
@@ -645,8 +645,8 @@ func testHCLBasicStructure(t *testing.T, manifest map[string]interface{}) {
 	}
 }
 
-func testHCLMetadata(t *testing.T, manifest map[string]interface{}) {
-	metadata, ok := manifest["metadata"].(map[string]interface{})
+func testHCLMetadata(t *testing.T, manifest map[string]any) {
+	metadata, ok := manifest["metadata"].(map[string]any)
 	if !ok {
 		t.Fatal("Expected metadata to be a map")
 	}
@@ -655,7 +655,7 @@ func testHCLMetadata(t *testing.T, manifest map[string]interface{}) {
 	}
 
 	// Test labels
-	labels, ok := metadata["labels"].(map[string]interface{})
+	labels, ok := metadata["labels"].(map[string]any)
 	if !ok {
 		t.Fatal("Expected labels to be a map")
 	}
@@ -670,8 +670,8 @@ func testHCLMetadata(t *testing.T, manifest map[string]interface{}) {
 	}
 }
 
-func testHCLSpec(t *testing.T, manifest map[string]interface{}) {
-	spec, ok := manifest["spec"].(map[string]interface{})
+func testHCLSpec(t *testing.T, manifest map[string]any) {
+	spec, ok := manifest["spec"].(map[string]any)
 	if !ok {
 		t.Fatal("Expected spec to be a map")
 	}
@@ -726,7 +726,7 @@ func TestRenderHCLManifestWithNamespace(t *testing.T) {
 }`
 
 	templatePath := filepath.Join(tempDir, "deployment.hcl")
-	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	err := os.WriteFile(templatePath, []byte(templateContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create template file: %v", err)
 	}
@@ -734,7 +734,7 @@ func TestRenderHCLManifestWithNamespace(t *testing.T) {
 	renderer := NewRenderer(nil)
 	context := renderer.BuildTemplateContext(
 		"frank-dev-app", "dev", "frank", "test-namespace", "app", "1.2.3",
-		map[string]interface{}{
+		map[string]any{
 			"replicas":   3,
 			"image_name": "nginx",
 		},
@@ -746,13 +746,13 @@ func TestRenderHCLManifestWithNamespace(t *testing.T) {
 	}
 
 	// Test that the rendered content is valid YAML
-	var manifest map[string]interface{}
+	var manifest map[string]any
 	if err := yaml.Unmarshal(rendered, &manifest); err != nil {
 		t.Fatalf("Rendered HCL template is not valid YAML: %v", err)
 	}
 
 	// Test metadata structure
-	metadata, ok := manifest["metadata"].(map[string]interface{})
+	metadata, ok := manifest["metadata"].(map[string]any)
 	if !ok {
 		t.Fatal("Expected metadata to be a map")
 	}

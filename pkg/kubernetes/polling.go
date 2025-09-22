@@ -127,11 +127,11 @@ func (d *Deployer) getDeploymentStatus(resource *unstructured.Unstructured) stri
 }
 
 // checkDeploymentConditions checks deployment-specific conditions
-func (d *Deployer) checkDeploymentConditions(status map[string]interface{}) string {
+func (d *Deployer) checkDeploymentConditions(status map[string]any) string {
 	conditions, _, _ := unstructured.NestedSlice(status, "conditions")
 
 	for _, cond := range conditions {
-		condMap, ok := cond.(map[string]interface{})
+		condMap, ok := cond.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -170,7 +170,7 @@ func (d *Deployer) getStatefulSetStatus(resource *unstructured.Unstructured) str
 	// Check conditions
 	conditions, _, _ := unstructured.NestedSlice(status, "conditions")
 	for _, cond := range conditions {
-		condMap, ok := cond.(map[string]interface{})
+		condMap, ok := cond.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -196,7 +196,7 @@ func (d *Deployer) getDaemonSetStatus(resource *unstructured.Unstructured) strin
 	// Check conditions
 	conditions, _, _ := unstructured.NestedSlice(status, "conditions")
 	for _, cond := range conditions {
-		condMap, ok := cond.(map[string]interface{})
+		condMap, ok := cond.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -223,11 +223,11 @@ func (d *Deployer) getJobStatus(resource *unstructured.Unstructured) string {
 }
 
 // checkJobConditions checks job-specific conditions
-func (d *Deployer) checkJobConditions(status map[string]interface{}) string {
+func (d *Deployer) checkJobConditions(status map[string]any) string {
 	conditions, _, _ := unstructured.NestedSlice(status, "conditions")
 
 	for _, cond := range conditions {
-		condMap, ok := cond.(map[string]interface{})
+		condMap, ok := cond.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -289,11 +289,11 @@ func (d *Deployer) getGenericStatus(resource *unstructured.Unstructured) string 
 }
 
 // checkGenericConditions checks generic resource conditions
-func (d *Deployer) checkGenericConditions(status map[string]interface{}) string {
+func (d *Deployer) checkGenericConditions(status map[string]any) string {
 	conditions, _, _ := unstructured.NestedSlice(status, "conditions")
 
 	for _, cond := range conditions {
-		condMap, ok := cond.(map[string]interface{})
+		condMap, ok := cond.(map[string]any)
 		if !ok {
 			continue
 		}

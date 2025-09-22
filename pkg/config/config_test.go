@@ -27,18 +27,26 @@ func TestLoadConfig(t *testing.T) {
 	configFile := filepath.Join(tempDir, ".frank.yaml")
 	configContent := `log_level: info
 timeout: 5m`
-	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	err = os.WriteFile(configFile, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
 	// Change to temp directory to test config file loading
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
-	os.Chdir(tempDir)
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Errorf("Failed to restore original directory: %v", err)
+		}
+	}()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
 
 	// Clear environment variable to test file loading
-	os.Unsetenv("FRANK_LOG_LEVEL")
+	if err := os.Unsetenv("FRANK_LOG_LEVEL"); err != nil {
+		t.Errorf("Failed to unset environment variable: %v", err)
+	}
 
 	config, err = LoadConfig()
 	if err != nil {

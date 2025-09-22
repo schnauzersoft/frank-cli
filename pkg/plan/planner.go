@@ -53,7 +53,7 @@ func NewPlanner(k8sDeployer KubernetesDeployer, templateRenderer *template.Rende
 }
 
 // PlanManifest plans a manifest by comparing current vs desired state
-func (p *Planner) PlanManifest(manifestData interface{}, manifestConfig *ManifestConfig, stackInfo *stack.StackInfo) PlanResult {
+func (p *Planner) PlanManifest(manifestData any, manifestConfig *ManifestConfig, stackInfo *stack.StackInfo) PlanResult {
 	// Convert manifest data to bytes for processing
 	manifestContent, err := p.convertManifestData(manifestData)
 	if err != nil {
@@ -95,7 +95,7 @@ func (p *Planner) PlanManifest(manifestData interface{}, manifestConfig *Manifes
 }
 
 // convertManifestData converts manifest data to bytes
-func (p *Planner) convertManifestData(manifestData interface{}) ([]byte, error) {
+func (p *Planner) convertManifestData(manifestData any) ([]byte, error) {
 	switch data := manifestData.(type) {
 	case string:
 		// It's a file path, read the file
@@ -209,17 +209,17 @@ func (p *Planner) writeDiffLine(diff *strings.Builder, oldLine, newLine string) 
 	if oldLine != newLine {
 		p.writeChangedLines(diff, oldLine, newLine)
 	} else {
-		diff.WriteString(fmt.Sprintf(" %s\n", oldLine))
+		fmt.Fprintf(diff, " %s\n", oldLine)
 	}
 }
 
 // writeChangedLines writes the old and new lines when they differ
 func (p *Planner) writeChangedLines(diff *strings.Builder, oldLine, newLine string) {
 	if oldLine != "" {
-		diff.WriteString(fmt.Sprintf("-%s\n", oldLine))
+		fmt.Fprintf(diff, "-%s\n", oldLine)
 	}
 	if newLine != "" {
-		diff.WriteString(fmt.Sprintf("+%s\n", newLine))
+		fmt.Fprintf(diff, "+%s\n", newLine)
 	}
 }
 
@@ -253,8 +253,9 @@ func (p *Planner) colorizeDiff(_, _, diff string) string {
 
 // ManifestConfig represents manifest-specific configuration for planning
 type ManifestConfig struct {
-	Manifest string                 `yaml:"manifest"`
-	Timeout  int                    `yaml:"timeout"`
-	Version  string                 `yaml:"version"`
-	Vars     map[string]interface{} `yaml:"vars"`
+	Manifest  string         `yaml:"manifest"`
+	Timeout   int            `yaml:"timeout"`
+	Version   string         `yaml:"version"`
+	Vars      map[string]any `yaml:"vars"`
+	DependsOn []string       `yaml:"depends_on"`
 }

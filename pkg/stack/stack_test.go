@@ -159,14 +159,14 @@ func setupTestConfigStructure(t *testing.T) (string, string, string) {
 project_code: test
 version: 1.0.0
 namespace: default`
-	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0644)
+	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create base config: %v", err)
 	}
 
 	// Create child config
 	childDir := filepath.Join(tempDir, "dev")
-	err = os.Mkdir(childDir, 0755)
+	err = os.Mkdir(childDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create child directory: %v", err)
 	}
@@ -175,14 +175,14 @@ namespace: default`
 namespace: dev-namespace
 app: web
 version: 2.0.0`
-	err = os.WriteFile(filepath.Join(childDir, "config.yaml"), []byte(childConfig), 0644)
+	err = os.WriteFile(filepath.Join(childDir, "config.yaml"), []byte(childConfig), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create child config: %v", err)
 	}
 
 	// Create another child config in a subdirectory
 	apiDir := filepath.Join(childDir, "api")
-	err = os.Mkdir(apiDir, 0755)
+	err = os.Mkdir(apiDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create api directory: %v", err)
 	}
@@ -190,7 +190,7 @@ version: 2.0.0`
 	apiConfig := `project_code: test
 app: api
 version: 3.0.0`
-	err = os.WriteFile(filepath.Join(apiDir, "config.yaml"), []byte(apiConfig), 0644)
+	err = os.WriteFile(filepath.Join(apiDir, "config.yaml"), []byte(apiConfig), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create api config: %v", err)
 	}
@@ -237,14 +237,14 @@ func TestGetStackInfo(t *testing.T) {
 	baseConfig := `context: test
 project_code: frank
 version: 1.0.0`
-	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0644)
+	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create base config: %v", err)
 	}
 
 	// Create web config in subdirectory
 	webDir := filepath.Join(tempDir, "web")
-	err = os.Mkdir(webDir, 0755)
+	err = os.Mkdir(webDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create web directory: %v", err)
 	}
@@ -252,7 +252,7 @@ version: 1.0.0`
 	webConfig := `project_code: frank
 app: web
 version: 2.0.0`
-	err = os.WriteFile(filepath.Join(webDir, "config.yaml"), []byte(webConfig), 0644)
+	err = os.WriteFile(filepath.Join(webDir, "config.yaml"), []byte(webConfig), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create web config: %v", err)
 	}

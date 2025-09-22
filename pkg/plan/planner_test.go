@@ -76,7 +76,7 @@ func createPlanManifestTestCases() []planManifestTestCase {
 
 type planManifestTestCase struct {
 	name            string
-	manifestData    interface{}
+	manifestData    any
 	manifestConfig  *ManifestConfig
 	stackInfo       *stack.StackInfo
 	expectError     bool
@@ -100,7 +100,7 @@ func TestPlanner_convertManifestData(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		manifestData interface{}
+		manifestData any
 		expectError  bool
 	}{
 		{

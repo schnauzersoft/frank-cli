@@ -43,7 +43,7 @@ func NewDeployer(config *rest.Config, logger *slog.Logger) (*Deployer, error) {
 }
 
 // DeployManifest applies a single manifest file to Kubernetes
-func (d *Deployer) DeployManifest(manifestPath string, stackName string, configNamespace string, timeout time.Duration) (*DeployResult, error) {
+func (d *Deployer) DeployManifest(manifestPath, stackName, configNamespace string, timeout time.Duration) (*DeployResult, error) {
 	// Parse and prepare the manifest
 	obj, gvr, err := d.parseAndPrepareManifest(manifestPath, stackName, configNamespace)
 	if err != nil {
@@ -74,7 +74,7 @@ func (d *Deployer) DeployManifest(manifestPath string, stackName string, configN
 }
 
 // DeployManifestContent applies manifest content from memory to Kubernetes
-func (d *Deployer) DeployManifestContent(manifestContent []byte, stackName string, configNamespace string, timeout time.Duration) (*DeployResult, error) {
+func (d *Deployer) DeployManifestContent(manifestContent []byte, stackName, configNamespace string, timeout time.Duration) (*DeployResult, error) {
 	// Parse and prepare the manifest content
 	obj, gvr, err := d.parseAndPrepareManifestContent(manifestContent, stackName, configNamespace)
 	if err != nil {
@@ -214,7 +214,6 @@ func (d *Deployer) applyResource(obj *unstructured.Unstructured, gvr schema.Grou
 
 	// Check if resource already exists
 	existing, err := d.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-
 	if err != nil {
 		// Resource doesn't exist, create it
 		d.logger.Warn("Resource does not exist, creating", "stack", stackName, "name", name, "namespace", namespace)

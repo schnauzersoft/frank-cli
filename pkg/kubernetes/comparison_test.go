@@ -21,18 +21,18 @@ func TestNeedsUpdate(t *testing.T) {
 		{
 			name: "identical resources should not need update",
 			existing: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
 									},
@@ -43,18 +43,18 @@ func TestNeedsUpdate(t *testing.T) {
 				},
 			},
 			desired: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
 									},
@@ -69,18 +69,18 @@ func TestNeedsUpdate(t *testing.T) {
 		{
 			name: "different replicas should need update",
 			existing: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
 									},
@@ -91,18 +91,18 @@ func TestNeedsUpdate(t *testing.T) {
 				},
 			},
 			desired: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(5),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
 									},
@@ -117,18 +117,18 @@ func TestNeedsUpdate(t *testing.T) {
 		{
 			name: "different image should need update",
 			existing: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
 									},
@@ -139,18 +139,18 @@ func TestNeedsUpdate(t *testing.T) {
 				},
 			},
 			desired: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.21",
 									},
@@ -165,22 +165,22 @@ func TestNeedsUpdate(t *testing.T) {
 		{
 			name: "different port protocol should need update",
 			existing: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												"protocol":      "TCP",
 											},
@@ -193,22 +193,22 @@ func TestNeedsUpdate(t *testing.T) {
 				},
 			},
 			desired: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												"protocol":      "UDP",
 											},
@@ -225,22 +225,22 @@ func TestNeedsUpdate(t *testing.T) {
 		{
 			name: "missing protocol should default to TCP and match",
 			existing: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												"protocol":      "TCP",
 											},
@@ -253,22 +253,22 @@ func TestNeedsUpdate(t *testing.T) {
 				},
 			},
 			desired: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "test-deployment",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"replicas": int64(3),
-						"template": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"containers": []interface{}{
-									map[string]interface{}{
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []any{
+									map[string]any{
 										"name":  "nginx",
 										"image": "nginx:1.20",
-										"ports": []interface{}{
-											map[string]interface{}{
+										"ports": []any{
+											map[string]any{
 												"containerPort": int64(80),
 												// protocol missing, should default to TCP
 											},
@@ -301,20 +301,20 @@ func TestComparePorts(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		existing []interface{}
-		desired  []interface{}
+		existing []any
+		desired  []any
 		expected bool
 	}{
 		{
 			name: "identical ports should match",
-			existing: []interface{}{
-				map[string]interface{}{
+			existing: []any{
+				map[string]any{
 					"containerPort": int64(80),
 					"protocol":      "TCP",
 				},
 			},
-			desired: []interface{}{
-				map[string]interface{}{
+			desired: []any{
+				map[string]any{
 					"containerPort": int64(80),
 					"protocol":      "TCP",
 				},
@@ -323,14 +323,14 @@ func TestComparePorts(t *testing.T) {
 		},
 		{
 			name: "different ports should not match",
-			existing: []interface{}{
-				map[string]interface{}{
+			existing: []any{
+				map[string]any{
 					"containerPort": int64(80),
 					"protocol":      "TCP",
 				},
 			},
-			desired: []interface{}{
-				map[string]interface{}{
+			desired: []any{
+				map[string]any{
 					"containerPort": int64(8080),
 					"protocol":      "TCP",
 				},
@@ -339,14 +339,14 @@ func TestComparePorts(t *testing.T) {
 		},
 		{
 			name: "missing protocol should default to TCP",
-			existing: []interface{}{
-				map[string]interface{}{
+			existing: []any{
+				map[string]any{
 					"containerPort": int64(80),
 					"protocol":      "TCP",
 				},
 			},
-			desired: []interface{}{
-				map[string]interface{}{
+			desired: []any{
+				map[string]any{
 					"containerPort": int64(80),
 					// protocol missing, should default to TCP
 				},
@@ -355,14 +355,14 @@ func TestComparePorts(t *testing.T) {
 		},
 		{
 			name: "different protocols should not match",
-			existing: []interface{}{
-				map[string]interface{}{
+			existing: []any{
+				map[string]any{
 					"containerPort": int64(80),
 					"protocol":      "TCP",
 				},
 			},
-			desired: []interface{}{
-				map[string]interface{}{
+			desired: []any{
+				map[string]any{
 					"containerPort": int64(80),
 					"protocol":      "UDP",
 				},
@@ -388,18 +388,18 @@ func TestMapsEqual(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		map1     map[string]interface{}
-		map2     map[string]interface{}
+		map1     map[string]any
+		map2     map[string]any
 		expected bool
 	}{
 		{
 			name: "identical maps should be equal",
-			map1: map[string]interface{}{
+			map1: map[string]any{
 				"key1": "value1",
 				"key2": 42,
 				"key3": true,
 			},
-			map2: map[string]interface{}{
+			map2: map[string]any{
 				"key1": "value1",
 				"key2": 42,
 				"key3": true,
@@ -408,11 +408,11 @@ func TestMapsEqual(t *testing.T) {
 		},
 		{
 			name: "different values should not be equal",
-			map1: map[string]interface{}{
+			map1: map[string]any{
 				"key1": "value1",
 				"key2": 42,
 			},
-			map2: map[string]interface{}{
+			map2: map[string]any{
 				"key1": "value1",
 				"key2": 43,
 			},
@@ -420,11 +420,11 @@ func TestMapsEqual(t *testing.T) {
 		},
 		{
 			name: "different keys should not be equal",
-			map1: map[string]interface{}{
+			map1: map[string]any{
 				"key1": "value1",
 				"key2": 42,
 			},
-			map2: map[string]interface{}{
+			map2: map[string]any{
 				"key1": "value1",
 				"key3": 42,
 			},
@@ -432,13 +432,13 @@ func TestMapsEqual(t *testing.T) {
 		},
 		{
 			name: "nested maps should be compared",
-			map1: map[string]interface{}{
-				"nested": map[string]interface{}{
+			map1: map[string]any{
+				"nested": map[string]any{
 					"inner": "value",
 				},
 			},
-			map2: map[string]interface{}{
-				"nested": map[string]interface{}{
+			map2: map[string]any{
+				"nested": map[string]any{
 					"inner": "value",
 				},
 			},
@@ -446,13 +446,13 @@ func TestMapsEqual(t *testing.T) {
 		},
 		{
 			name: "different nested maps should not be equal",
-			map1: map[string]interface{}{
-				"nested": map[string]interface{}{
+			map1: map[string]any{
+				"nested": map[string]any{
 					"inner": "value1",
 				},
 			},
-			map2: map[string]interface{}{
-				"nested": map[string]interface{}{
+			map2: map[string]any{
+				"nested": map[string]any{
 					"inner": "value2",
 				},
 			},
@@ -460,21 +460,21 @@ func TestMapsEqual(t *testing.T) {
 		},
 		{
 			name: "slices should be compared",
-			map1: map[string]interface{}{
-				"slice": []interface{}{"a", "b", "c"},
+			map1: map[string]any{
+				"slice": []any{"a", "b", "c"},
 			},
-			map2: map[string]interface{}{
-				"slice": []interface{}{"a", "b", "c"},
+			map2: map[string]any{
+				"slice": []any{"a", "b", "c"},
 			},
 			expected: true,
 		},
 		{
 			name: "different slices should not be equal",
-			map1: map[string]interface{}{
-				"slice": []interface{}{"a", "b", "c"},
+			map1: map[string]any{
+				"slice": []any{"a", "b", "c"},
 			},
-			map2: map[string]interface{}{
-				"slice": []interface{}{"a", "b", "d"},
+			map2: map[string]any{
+				"slice": []any{"a", "b", "d"},
 			},
 			expected: false,
 		},

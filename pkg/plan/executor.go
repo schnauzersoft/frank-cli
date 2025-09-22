@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/schnauzersoft/frank-cli/pkg/kubernetes"
 	"github.com/schnauzersoft/frank-cli/pkg/stack"
@@ -64,7 +63,7 @@ func NewExecutorWithDeployer(configDir string, logger *slog.Logger, k8sDeployer 
 	}
 }
 
-// PlanAll plans all configurations without applying them
+// PlanAll plans all configurations without applying them in dependency order
 func (e *Executor) PlanAll(stackFilter string) ([]PlanResult, error) {
 	// Find all YAML config files
 	configFiles, err := e.findAllConfigFiles()
@@ -86,30 +85,25 @@ func (e *Executor) PlanAll(stackFilter string) ([]PlanResult, error) {
 
 	e.logger.Debug("Found config files for plan", "count", len(configFiles), "files", configFiles, "filter", stackFilter)
 
-	// Create channels for results and errors
-	results := make(chan PlanResult, len(configFiles))
-	var wg sync.WaitGroup
-
-	// Plan each config file in parallel
-	for _, configFile := range configFiles {
-		wg.Add(1)
-		go func(file string) {
-			defer wg.Done()
-			e.logger.Debug("Starting plan", "config_file", file)
-			result := e.planSingleConfig(file)
-			results <- result
-		}(configFile)
+	// Collect stack info and dependencies for all config files
+	stacksWithDeps, err := e.collectStacksWithDependencies(configFiles)
+	if err != nil {
+		return nil, fmt.Errorf("error collecting stack info and dependencies: %v", err)
 	}
 
-	// Wait for all plans to complete
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
+	// Resolve dependencies and get execution order
+	orderedStacks, err := stack.ResolveDependencies(stacksWithDeps)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving dependencies: %v", err)
+	}
 
-	// Collect results
+	e.logger.Debug("Resolved execution order for plan", "stacks", len(orderedStacks))
+
+	// Plan stacks in dependency order
 	var planResults []PlanResult
-	for result := range results {
+	for _, stackInfo := range orderedStacks {
+		e.logger.Debug("Starting plan", "config_file", stackInfo.ConfigPath, "stack", stackInfo.Name)
+		result := e.planSingleConfig(stackInfo.ConfigPath)
 		planResults = append(planResults, result)
 	}
 
@@ -246,7 +240,7 @@ func (e *Executor) readManifestConfig(configPath string) (*ManifestConfig, error
 }
 
 // findAndPrepareManifestForPlan finds the manifest file and renders it if it's a template for planning
-func (e *Executor) findAndPrepareManifestForPlan(manifestConfig *ManifestConfig, stackInfo *stack.StackInfo) (interface{}, error) {
+func (e *Executor) findAndPrepareManifestForPlan(manifestConfig *ManifestConfig, stackInfo *stack.StackInfo) (any, error) {
 	// Find the manifest file
 	manifestPath, err := e.findManifestFile(manifestConfig.Manifest)
 	if err != nil {
@@ -318,4 +312,32 @@ func createKubernetesConfig() (*rest.Config, error) {
 	}
 
 	return config, nil
+}
+
+// collectStacksWithDependencies collects stack information and dependencies for all config files
+func (e *Executor) collectStacksWithDependencies(configFiles []string) ([]stack.StackWithDependencies, error) {
+	var stacksWithDeps []stack.StackWithDependencies
+
+	for _, configFile := range configFiles {
+		// Get stack info
+		stackInfo, err := stack.GetStackInfo(configFile)
+		if err != nil {
+			e.logger.Warn("Failed to get stack info", "config_file", configFile, "error", err)
+			continue
+		}
+
+		// Get manifest config to extract dependencies
+		manifestConfig, err := e.readManifestConfig(configFile)
+		if err != nil {
+			e.logger.Warn("Failed to read manifest config", "config_file", configFile, "error", err)
+			continue
+		}
+
+		stacksWithDeps = append(stacksWithDeps, stack.StackWithDependencies{
+			StackInfo: stackInfo,
+			DependsOn: manifestConfig.DependsOn,
+		})
+	}
+
+	return stacksWithDeps, nil
 }

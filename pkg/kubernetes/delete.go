@@ -69,7 +69,8 @@ func (d *Deployer) deleteResourcesOfType(rt struct {
 	Version  string
 	Resource string
 	Kind     string
-}, stackFilter string) []DeleteResult {
+}, stackFilter string,
+) []DeleteResult {
 	var results []DeleteResult
 
 	gvr := schema.GroupVersionResource{
@@ -122,7 +123,8 @@ func (d *Deployer) deleteResource(item unstructured.Unstructured, rt struct {
 	Version  string
 	Resource string
 	Kind     string
-}, gvr schema.GroupVersionResource) DeleteResult {
+}, gvr schema.GroupVersionResource,
+) DeleteResult {
 	annotations := item.GetAnnotations()
 	stackName := annotations["frankthetank.cloud/stack-name"]
 	namespace := item.GetNamespace()

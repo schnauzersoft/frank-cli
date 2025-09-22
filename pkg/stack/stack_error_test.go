@@ -51,7 +51,7 @@ func createErrorTestCases() []struct {
 				invalidYAML := `context: test
 project_code: frank
 invalid: [`
-				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(invalidYAML), 0644)
+				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(invalidYAML), 0o644)
 			},
 			expectError: true,
 		},
@@ -60,7 +60,7 @@ invalid: [`
 			setup: func(tempDir string) error {
 				config := `context: test
 version: 1.0.0`
-				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(config), 0644)
+				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(config), 0o644)
 			},
 			expectError: true,
 		},
@@ -70,7 +70,7 @@ version: 1.0.0`
 				config := `context: test
 project_code: frank
 version: 1.0.0`
-				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(config), 0644)
+				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(config), 0o644)
 			},
 			expectError: false,
 		},

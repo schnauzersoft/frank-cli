@@ -1,10 +1,14 @@
 package deploy
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/schnauzersoft/frank-cli/pkg/kubernetes"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func TestFilterConfigFilesByStack(t *testing.T) {
@@ -44,10 +48,10 @@ func createTestConfigFiles(t *testing.T, tempDir string) []string {
 	// Create the directory structure
 	for _, file := range configFiles {
 		dir := filepath.Dir(file)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
-		if err := os.WriteFile(file, []byte("manifest: test.yaml"), 0644); err != nil {
+		if err := os.WriteFile(file, []byte("manifest: test.yaml"), 0o644); err != nil {
 			t.Fatalf("Failed to create file %s: %v", file, err)
 		}
 	}
@@ -226,7 +230,7 @@ func TestValidateNamespaceConfiguration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary manifest file
 			manifestPath := filepath.Join(tempDir, "test-manifest.yaml")
-			err := os.WriteFile(manifestPath, []byte(tt.manifestContent), 0644)
+			err := os.WriteFile(manifestPath, []byte(tt.manifestContent), 0o644)
 			if err != nil {
 				t.Fatalf("Failed to create manifest file: %v", err)
 			}
@@ -358,4 +362,115 @@ func containsInMiddle(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// TestDeployResultErrorHandling tests that DeployResult errors are properly handled
+func TestDeployResultErrorHandling(t *testing.T) {
+	deployer := &Deployer{
+		logger: slog.Default(),
+	}
+
+	// Test successful result
+	successResult := &kubernetes.DeployResult{
+		Resource: &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]any{
+					"name":      "test-app",
+					"namespace": "test-namespace",
+				},
+			},
+		},
+		Operation: "created",
+		Status:    "Available",
+		Error:     nil,
+	}
+
+	response := deployer.formatResponse(successResult)
+	expectedSuccess := "Applied apps/v1/Deployment: test-app in namespace test-namespace (operation: created, status: Available)"
+	if response != expectedSuccess {
+		t.Errorf("Expected success response %q, got %q", expectedSuccess, response)
+	}
+
+	// Test failed result
+	failedResult := &kubernetes.DeployResult{
+		Resource: &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]any{
+					"name":      "test-app",
+					"namespace": "test-namespace",
+				},
+			},
+		},
+		Operation: "failed",
+		Status:    "failed",
+		Error:     fmt.Errorf("namespaces \"test-namespace\" not found"),
+	}
+
+	response = deployer.formatResponse(failedResult)
+	expectedFailure := "Apply failed: namespaces \"test-namespace\" not found"
+	if response != expectedFailure {
+		t.Errorf("Expected failure response %q, got %q", expectedFailure, response)
+	}
+}
+
+// TestFormatResponseSuccess tests successful formatResponse
+func TestFormatResponseSuccess(t *testing.T) {
+	deployer := &Deployer{
+		logger: slog.Default(),
+	}
+
+	result := &kubernetes.DeployResult{
+		Resource: &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]any{
+					"name":      "test-app",
+					"namespace": "test-namespace",
+				},
+			},
+		},
+		Operation: "created",
+		Status:    "Available",
+		Error:     nil,
+	}
+
+	response := deployer.formatResponse(result)
+	expected := "Applied apps/v1/Deployment: test-app in namespace test-namespace (operation: created, status: Available)"
+	if response != expected {
+		t.Errorf("Expected response %q, got %q", expected, response)
+	}
+}
+
+// TestFormatResponseError tests error formatResponse
+func TestFormatResponseError(t *testing.T) {
+	deployer := &Deployer{
+		logger: slog.Default(),
+	}
+
+	result := &kubernetes.DeployResult{
+		Resource: &unstructured.Unstructured{
+			Object: map[string]any{
+				"apiVersion": "v1",
+				"kind":       "Service",
+				"metadata": map[string]any{
+					"name":      "test-service",
+					"namespace": "test-namespace",
+				},
+			},
+		},
+		Operation: "failed",
+		Status:    "failed",
+		Error:     fmt.Errorf("service already exists"),
+	}
+
+	response := deployer.formatResponse(result)
+	expected := "Apply failed: service already exists"
+	if response != expected {
+		t.Errorf("Expected response %q, got %q", expected, response)
+	}
 }

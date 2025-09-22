@@ -49,7 +49,7 @@ func (r *Renderer) IsHCLTemplate(filePath string) bool {
 }
 
 // RenderMultiDocYAML renders a multi-document YAML template
-func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]interface{}) ([]byte, error) {
+func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]any) ([]byte, error) {
 	// Render the template first
 	rendered, err := r.RenderManifest(templatePath, context)
 	if err != nil {
@@ -67,12 +67,12 @@ func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]in
 }
 
 // parseMultiDocYAML parses multi-document YAML content
-func (r *Renderer) parseMultiDocYAML(rendered []byte) ([]interface{}, error) {
-	var documents []interface{}
+func (r *Renderer) parseMultiDocYAML(rendered []byte) ([]any, error) {
+	var documents []any
 	decoder := yaml.NewDecoder(strings.NewReader(string(rendered)))
 
 	for {
-		var doc interface{}
+		var doc any
 		if err := decoder.Decode(&doc); err != nil {
 			if err.Error() == "EOF" {
 				break
@@ -86,7 +86,7 @@ func (r *Renderer) parseMultiDocYAML(rendered []byte) ([]interface{}, error) {
 }
 
 // encodeMultiDocYAML encodes documents as multi-document YAML
-func (r *Renderer) encodeMultiDocYAML(documents []interface{}) ([]byte, error) {
+func (r *Renderer) encodeMultiDocYAML(documents []any) ([]byte, error) {
 	var result strings.Builder
 	encoder := yaml.NewEncoder(&result)
 
@@ -103,8 +103,8 @@ func (r *Renderer) encodeMultiDocYAML(documents []interface{}) ([]byte, error) {
 }
 
 // BuildTemplateContext builds the template context from stack info and config
-func (r *Renderer) BuildTemplateContext(stackName, context, projectCode, namespace, app, version string, vars map[string]interface{}) map[string]interface{} {
-	templateContext := map[string]interface{}{
+func (r *Renderer) BuildTemplateContext(stackName, context, projectCode, namespace, app, version string, vars map[string]any) map[string]any {
+	templateContext := map[string]any{
 		"stack_name":   stackName,
 		"context":      context,
 		"project_code": projectCode,
@@ -131,7 +131,7 @@ func (r *Renderer) BuildTemplateContext(stackName, context, projectCode, namespa
 }
 
 // RenderHCLManifest renders an HCL template file to Kubernetes manifests
-func (r *Renderer) RenderHCLManifest(templatePath string, context map[string]interface{}) ([]byte, error) {
+func (r *Renderer) RenderHCLManifest(templatePath string, context map[string]any) ([]byte, error) {
 	// Read the template file
 	templateContent, err := os.ReadFile(templatePath)
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *Renderer) RenderHCLManifest(templatePath string, context map[string]int
 }
 
 // convertHCLToKubernetesYAML converts HCL body to Kubernetes YAML
-func (r *Renderer) convertHCLToKubernetesYAML(body hcl.Body, context map[string]interface{}) (string, error) {
+func (r *Renderer) convertHCLToKubernetesYAML(body hcl.Body, context map[string]any) (string, error) {
 	// Parse the HCL body to extract resource blocks
 	content, diags := body.Content(&hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
@@ -232,7 +232,7 @@ func (r *Renderer) convertResourceBlockToYAML(block *hcl.Block) (string, error) 
 	}
 
 	// Convert HCL attributes to Kubernetes YAML
-	kubernetesObj := map[string]interface{}{
+	kubernetesObj := map[string]any{
 		"apiVersion": mapping.apiVersion,
 		"kind":       mapping.kind,
 	}
@@ -276,7 +276,7 @@ func (r *Renderer) convertResourceBlockToYAML(block *hcl.Block) (string, error) 
 }
 
 // convertHCLValueToGo converts an HCL expression to a Go value
-func (r *Renderer) convertHCLValueToGo(expr hcl.Expression) (interface{}, error) {
+func (r *Renderer) convertHCLValueToGo(expr hcl.Expression) (any, error) {
 	// This is a simplified implementation that handles basic HCL expressions
 	// We'll use the HCL evaluator to convert expressions to Go values
 
@@ -291,12 +291,12 @@ func (r *Renderer) convertHCLValueToGo(expr hcl.Expression) (interface{}, error)
 		return nil, fmt.Errorf("failed to evaluate HCL expression: %v", diags)
 	}
 
-	// Convert cty.Value to Go interface{}
+	// Convert cty.Value to Go any
 	return r.ctyValueToGo(val)
 }
 
-// ctyValueToGo converts a cty.Value to a Go interface{}
-func (r *Renderer) ctyValueToGo(val cty.Value) (interface{}, error) {
+// ctyValueToGo converts a cty.Value to a Go any
+func (r *Renderer) ctyValueToGo(val cty.Value) (any, error) {
 	if val.IsNull() {
 		return nil, nil
 	}
@@ -322,7 +322,7 @@ func (r *Renderer) ctyValueToGo(val cty.Value) (interface{}, error) {
 }
 
 // convertNumber converts a cty.Number to Go int or float64
-func (r *Renderer) convertNumber(val cty.Value) (interface{}, error) {
+func (r *Renderer) convertNumber(val cty.Value) (any, error) {
 	bigFloat := val.AsBigFloat()
 	if bigFloat.IsInt() {
 		intVal, _ := bigFloat.Int64()
@@ -353,7 +353,7 @@ func (r *Renderer) convertStringMap(val cty.Value) (map[string]string, error) {
 }
 
 // convertComplexType handles objects, tuples, and other complex types
-func (r *Renderer) convertComplexType(val cty.Value) (interface{}, error) {
+func (r *Renderer) convertComplexType(val cty.Value) (any, error) {
 	if val.Type().IsObjectType() {
 		return r.convertObject(val)
 	}
@@ -365,9 +365,9 @@ func (r *Renderer) convertComplexType(val cty.Value) (interface{}, error) {
 	return nil, fmt.Errorf("unsupported HCL type: %s", val.Type().FriendlyName())
 }
 
-// convertObject converts a cty.Object to map[string]interface{}
-func (r *Renderer) convertObject(val cty.Value) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
+// convertObject converts a cty.Object to map[string]any
+func (r *Renderer) convertObject(val cty.Value) (map[string]any, error) {
+	result := make(map[string]any)
 	for k, v := range val.AsValueMap() {
 		goVal, err := r.ctyValueToGo(v)
 		if err != nil {
@@ -378,9 +378,9 @@ func (r *Renderer) convertObject(val cty.Value) (map[string]interface{}, error) 
 	return result, nil
 }
 
-// convertTuple converts a cty.Tuple to []interface{}
-func (r *Renderer) convertTuple(val cty.Value) ([]interface{}, error) {
-	var result []interface{}
+// convertTuple converts a cty.Tuple to []any
+func (r *Renderer) convertTuple(val cty.Value) ([]any, error) {
+	var result []any
 	for it := val.ElementIterator(); it.Next(); {
 		_, elemVal := it.Element()
 		goVal, err := r.ctyValueToGo(elemVal)
@@ -393,7 +393,7 @@ func (r *Renderer) convertTuple(val cty.Value) ([]interface{}, error) {
 }
 
 // substituteHCLVariables performs simple variable substitution in HCL content
-func (r *Renderer) substituteHCLVariables(content string, context map[string]interface{}) string {
+func (r *Renderer) substituteHCLVariables(content string, context map[string]any) string {
 	// Simple variable substitution for ${var.name} patterns
 	result := content
 	for varName, value := range context {
@@ -405,7 +405,7 @@ func (r *Renderer) substituteHCLVariables(content string, context map[string]int
 }
 
 // RenderManifest renders a template file (Jinja or HCL) to Kubernetes manifests
-func (r *Renderer) RenderManifest(templatePath string, context map[string]interface{}) ([]byte, error) {
+func (r *Renderer) RenderManifest(templatePath string, context map[string]any) ([]byte, error) {
 	if r.IsJinjaTemplate(templatePath) {
 		return r.RenderJinjaManifest(templatePath, context)
 	} else if r.IsHCLTemplate(templatePath) {
@@ -415,7 +415,7 @@ func (r *Renderer) RenderManifest(templatePath string, context map[string]interf
 }
 
 // RenderJinjaManifest renders a Jinja template file to Kubernetes manifests
-func (r *Renderer) RenderJinjaManifest(templatePath string, context map[string]interface{}) ([]byte, error) {
+func (r *Renderer) RenderJinjaManifest(templatePath string, context map[string]any) ([]byte, error) {
 	// Read the template file
 	templateContent, err := os.ReadFile(templatePath)
 	if err != nil {

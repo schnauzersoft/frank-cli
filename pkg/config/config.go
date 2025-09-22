@@ -49,7 +49,10 @@ func setupViper() {
 	viper.AutomaticEnv()
 
 	// Bind environment variables
-	viper.BindEnv("log_level", "FRANK_LOG_LEVEL")
+	if err := viper.BindEnv("log_level", "FRANK_LOG_LEVEL"); err != nil {
+		// Log the error but continue - this is not critical
+		fmt.Printf("Warning: failed to bind environment variable: %v\n", err)
+	}
 
 	// Set default values
 	viper.SetDefault("log_level", "info")
