@@ -16,8 +16,6 @@ TARGETS=(
     "linux/arm64"
     "darwin/amd64"
     "darwin/arm64"
-    "windows/amd64"
-    "windows/arm64"
 )
 
 LDFLAGS="-X github.com/schnauzersoft/frank-cli/cmd.Version=${VERSION} -X github.com/schnauzersoft/frank-cli/cmd.CommitSHA=${COMMIT_SHA} -X github.com/schnauzersoft/frank-cli/cmd.BuildTime=${BUILD_TIME}"
@@ -44,9 +42,6 @@ for target in "${TARGETS[@]}"; do
     echo "Building for ${os}/${arch}..."
     
     binary_name="frank-${CLEAN_VERSION}"
-    if [ "$os" = "windows" ]; then
-        binary_name="frank-${CLEAN_VERSION}.exe"
-    fi
     
     export GOOS="$os"
     export GOARCH="$arch"
@@ -82,11 +77,7 @@ for target in "${TARGETS[@]}"; do
     
     rm -rf "$release_dir"
     
-    if [ "$os" = "windows" ]; then
-        size=$(stat -f%z "dist/frank-${CLEAN_VERSION}.exe" 2>/dev/null || stat -c%s "dist/frank-${CLEAN_VERSION}.exe" 2>/dev/null || echo "unknown")
-    else
-        size=$(stat -f%z "dist/frank-${CLEAN_VERSION}" 2>/dev/null || stat -c%s "dist/frank-${CLEAN_VERSION}" 2>/dev/null || echo "unknown")
-    fi
+    size=$(stat -f%z "dist/frank-${CLEAN_VERSION}" 2>/dev/null || stat -c%s "dist/frank-${CLEAN_VERSION}" 2>/dev/null || echo "unknown")
     
     echo "  ✓ Built: frank-${CLEAN_VERSION}-${os}-${arch}.tar.gz (${size} bytes)"
 done
