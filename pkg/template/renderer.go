@@ -5,6 +5,7 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package template
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,37 +19,40 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Renderer handles Jinja template rendering
+// Renderer handles Jinja template rendering.
 type Renderer struct {
 	logger *slog.Logger
 }
 
-// NewRenderer creates a new template renderer
+// NewRenderer creates a new template renderer.
 func NewRenderer(logger *slog.Logger) *Renderer {
 	return &Renderer{
 		logger: logger,
 	}
 }
 
-// IsTemplateFile checks if a file is a template (Jinja or HCL)
+// IsTemplateFile checks if a file is a template (Jinja or HCL).
 func (r *Renderer) IsTemplateFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
+
 	return ext == ".jinja" || ext == ".j2" || ext == ".hcl" || ext == ".tf"
 }
 
-// IsJinjaTemplate checks if a file is a Jinja template
+// IsJinjaTemplate checks if a file is a Jinja template.
 func (r *Renderer) IsJinjaTemplate(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
+
 	return ext == ".jinja" || ext == ".j2"
 }
 
-// IsHCLTemplate checks if a file is an HCL template
+// IsHCLTemplate checks if a file is an HCL template.
 func (r *Renderer) IsHCLTemplate(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
+
 	return ext == ".hcl" || ext == ".tf"
 }
 
-// RenderMultiDocYAML renders a multi-document YAML template
+// RenderMultiDocYAML renders a multi-document YAML template.
 func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]any) ([]byte, error) {
 	// Render the template first
 	rendered, err := r.RenderManifest(templatePath, context)
@@ -66,43 +70,51 @@ func (r *Renderer) RenderMultiDocYAML(templatePath string, context map[string]an
 	return r.encodeMultiDocYAML(documents)
 }
 
-// parseMultiDocYAML parses multi-document YAML content
+// parseMultiDocYAML parses multi-document YAML content.
 func (r *Renderer) parseMultiDocYAML(rendered []byte) ([]any, error) {
 	var documents []any
+
 	decoder := yaml.NewDecoder(strings.NewReader(string(rendered)))
 
 	for {
 		var doc any
-		if err := decoder.Decode(&doc); err != nil {
+
+		err := decoder.Decode(&doc)
+		if err != nil {
 			if err.Error() == "EOF" {
 				break
 			}
-			return nil, fmt.Errorf("failed to parse multi-doc YAML: %v", err)
+
+			return nil, fmt.Errorf("failed to parse multi-doc YAML: %w", err)
 		}
+
 		documents = append(documents, doc)
 	}
 
 	return documents, nil
 }
 
-// encodeMultiDocYAML encodes documents as multi-document YAML
+// encodeMultiDocYAML encodes documents as multi-document YAML.
 func (r *Renderer) encodeMultiDocYAML(documents []any) ([]byte, error) {
 	var result strings.Builder
+
 	encoder := yaml.NewEncoder(&result)
 
 	for i, doc := range documents {
 		if i > 0 {
 			result.WriteString("---\n")
 		}
-		if err := encoder.Encode(doc); err != nil {
-			return nil, fmt.Errorf("failed to encode document %d: %v", i, err)
+
+		err := encoder.Encode(doc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode document %d: %w", i, err)
 		}
 	}
 
 	return []byte(result.String()), nil
 }
 
-// BuildTemplateContext builds the template context from stack info and config
+// BuildTemplateContext builds the template context from stack info and config.
 func (r *Renderer) BuildTemplateContext(stackName, context, projectCode, namespace, app, version string, vars map[string]any) map[string]any {
 	templateContext := map[string]any{
 		"stack_name":   stackName,
@@ -117,6 +129,7 @@ func (r *Renderer) BuildTemplateContext(stackName, context, projectCode, namespa
 	if namespace == "" {
 		namespace = "default"
 	}
+
 	templateContext["k8s_namespace"] = namespace
 
 	// Add app_name for backward compatibility
@@ -130,12 +143,12 @@ func (r *Renderer) BuildTemplateContext(stackName, context, projectCode, namespa
 	return templateContext
 }
 
-// RenderHCLManifest renders an HCL template file to Kubernetes manifests
+// RenderHCLManifest renders an HCL template file to Kubernetes manifests.
 func (r *Renderer) RenderHCLManifest(templatePath string, context map[string]any) ([]byte, error) {
 	// Read the template file
 	templateContent, err := os.ReadFile(templatePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read template file: %v", err)
+		return nil, fmt.Errorf("failed to read template file: %w", err)
 	}
 
 	// First, substitute variables in the HCL content
@@ -143,21 +156,22 @@ func (r *Renderer) RenderHCLManifest(templatePath string, context map[string]any
 
 	// Parse the HCL content
 	parser := hclparse.NewParser()
+
 	file, diags := parser.ParseHCL([]byte(substitutedContent), "template.hcl")
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("HCL parsing errors: %v", diags)
+		return nil, fmt.Errorf("HCL parsing errors: %w", diags)
 	}
 
 	// Convert HCL to Kubernetes YAML
 	kubernetesYAML, err := r.convertHCLToKubernetesYAML(file.Body, context)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert HCL to Kubernetes YAML: %v", err)
+		return nil, fmt.Errorf("failed to convert HCL to Kubernetes YAML: %w", err)
 	}
 
 	return []byte(kubernetesYAML), nil
 }
 
-// convertHCLToKubernetesYAML converts HCL body to Kubernetes YAML
+// convertHCLToKubernetesYAML converts HCL body to Kubernetes YAML.
 func (r *Renderer) convertHCLToKubernetesYAML(body hcl.Body, context map[string]any) (string, error) {
 	// Parse the HCL body to extract resource blocks
 	content, diags := body.Content(&hcl.BodySchema{
@@ -166,7 +180,7 @@ func (r *Renderer) convertHCLToKubernetesYAML(body hcl.Body, context map[string]
 		},
 	})
 	if diags.HasErrors() {
-		return "", fmt.Errorf("failed to parse HCL body: %v", diags)
+		return "", fmt.Errorf("failed to parse HCL body: %w", diags)
 	}
 
 	var kubernetesResources []string
@@ -176,8 +190,9 @@ func (r *Renderer) convertHCLToKubernetesYAML(body hcl.Body, context map[string]
 		if block.Type == "resource" {
 			resourceYAML, err := r.convertResourceBlockToYAML(block)
 			if err != nil {
-				return "", fmt.Errorf("failed to convert resource block: %v", err)
+				return "", fmt.Errorf("failed to convert resource block: %w", err)
 			}
+
 			kubernetesResources = append(kubernetesResources, resourceYAML)
 		}
 	}
@@ -186,7 +201,7 @@ func (r *Renderer) convertHCLToKubernetesYAML(body hcl.Body, context map[string]
 	return strings.Join(kubernetesResources, "\n---\n"), nil
 }
 
-// convertResourceBlockToYAML converts a single HCL resource block to Kubernetes YAML
+// convertResourceBlockToYAML converts a single HCL resource block to Kubernetes YAML.
 func (r *Renderer) convertResourceBlockToYAML(block *hcl.Block) (string, error) {
 	resourceType := block.Labels[0]
 	_ = block.Labels[1] // resourceName - not used in this simplified implementation
@@ -245,15 +260,16 @@ func (r *Renderer) convertResourceBlockToYAML(block *hcl.Block) (string, error) 
 		},
 	})
 	if diags.HasErrors() {
-		return "", fmt.Errorf("failed to parse resource body: %v", diags)
+		return "", fmt.Errorf("failed to parse resource body: %w", diags)
 	}
 
 	// Convert metadata
 	if metadataAttr, exists := resourceContent.Attributes["metadata"]; exists {
 		metadata, err := r.convertHCLValueToGo(metadataAttr.Expr)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert metadata: %v", err)
+			return "", fmt.Errorf("failed to convert metadata: %w", err)
 		}
+
 		kubernetesObj["metadata"] = metadata
 	}
 
@@ -261,21 +277,22 @@ func (r *Renderer) convertResourceBlockToYAML(block *hcl.Block) (string, error) 
 	if specAttr, exists := resourceContent.Attributes["spec"]; exists {
 		spec, err := r.convertHCLValueToGo(specAttr.Expr)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert spec: %v", err)
+			return "", fmt.Errorf("failed to convert spec: %w", err)
 		}
+
 		kubernetesObj["spec"] = spec
 	}
 
 	// Convert to YAML
 	yamlBytes, err := yaml.Marshal(kubernetesObj)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal to YAML: %v", err)
+		return "", fmt.Errorf("failed to marshal to YAML: %w", err)
 	}
 
 	return string(yamlBytes), nil
 }
 
-// convertHCLValueToGo converts an HCL expression to a Go value
+// convertHCLValueToGo converts an HCL expression to a Go value.
 func (r *Renderer) convertHCLValueToGo(expr hcl.Expression) (any, error) {
 	// This is a simplified implementation that handles basic HCL expressions
 	// We'll use the HCL evaluator to convert expressions to Go values
@@ -288,21 +305,22 @@ func (r *Renderer) convertHCLValueToGo(expr hcl.Expression) (any, error) {
 	// Evaluate the expression
 	val, diags := expr.Value(ctx)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to evaluate HCL expression: %v", diags)
+		return nil, fmt.Errorf("failed to evaluate HCL expression: %w", diags)
 	}
 
 	// Convert cty.Value to Go any
 	return r.ctyValueToGo(val)
 }
 
-// ctyValueToGo converts a cty.Value to a Go any
+// ctyValueToGo converts a cty.Value to a Go any.
 func (r *Renderer) ctyValueToGo(val cty.Value) (any, error) {
 	if val.IsNull() {
+		//nolint:nilnil
 		return nil, nil
 	}
 
 	if !val.IsKnown() {
-		return nil, fmt.Errorf("value is not known")
+		return nil, errors.New("value is not known")
 	}
 
 	switch val.Type() {
@@ -321,38 +339,45 @@ func (r *Renderer) ctyValueToGo(val cty.Value) (any, error) {
 	}
 }
 
-// convertNumber converts a cty.Number to Go int or float64
+// convertNumber converts a cty.Number to Go int or float64.
 func (r *Renderer) convertNumber(val cty.Value) (any, error) {
 	bigFloat := val.AsBigFloat()
 	if bigFloat.IsInt() {
 		intVal, _ := bigFloat.Int64()
+
 		return intVal, nil
 	}
+
 	floatVal, _ := bigFloat.Float64()
+
 	return floatVal, nil
 }
 
-// convertStringList converts a cty.List(cty.String) to []string
+// convertStringList converts a cty.List(cty.String) to []string.
 func (r *Renderer) convertStringList(val cty.Value) ([]string, error) {
 	var result []string
+
 	for it := val.ElementIterator(); it.Next(); {
 		_, elemVal := it.Element()
 		result = append(result, elemVal.AsString())
 	}
+
 	return result, nil
 }
 
-// convertStringMap converts a cty.Map(cty.String) to map[string]string
+// convertStringMap converts a cty.Map(cty.String) to map[string]string.
 func (r *Renderer) convertStringMap(val cty.Value) (map[string]string, error) {
 	result := make(map[string]string)
+
 	for it := val.ElementIterator(); it.Next(); {
 		k, v := it.Element()
 		result[k.AsString()] = v.AsString()
 	}
+
 	return result, nil
 }
 
-// convertComplexType handles objects, tuples, and other complex types
+// convertComplexType handles objects, tuples, and other complex types.
 func (r *Renderer) convertComplexType(val cty.Value) (any, error) {
 	if val.Type().IsObjectType() {
 		return r.convertObject(val)
@@ -365,73 +390,83 @@ func (r *Renderer) convertComplexType(val cty.Value) (any, error) {
 	return nil, fmt.Errorf("unsupported HCL type: %s", val.Type().FriendlyName())
 }
 
-// convertObject converts a cty.Object to map[string]any
+// convertObject converts a cty.Object to map[string]any.
 func (r *Renderer) convertObject(val cty.Value) (map[string]any, error) {
 	result := make(map[string]any)
+
 	for k, v := range val.AsValueMap() {
 		goVal, err := r.ctyValueToGo(v)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert object field %s: %v", k, err)
+			return nil, fmt.Errorf("failed to convert object field %s: %w", k, err)
 		}
+
 		result[k] = goVal
 	}
+
 	return result, nil
 }
 
-// convertTuple converts a cty.Tuple to []any
+// convertTuple converts a cty.Tuple to []any.
 func (r *Renderer) convertTuple(val cty.Value) ([]any, error) {
 	var result []any
+
 	for it := val.ElementIterator(); it.Next(); {
 		_, elemVal := it.Element()
+
 		goVal, err := r.ctyValueToGo(elemVal)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert tuple element: %v", err)
+			return nil, fmt.Errorf("failed to convert tuple element: %w", err)
 		}
+
 		result = append(result, goVal)
 	}
+
 	return result, nil
 }
 
-// substituteHCLVariables performs simple variable substitution in HCL content
+// substituteHCLVariables performs simple variable substitution in HCL content.
 func (r *Renderer) substituteHCLVariables(content string, context map[string]any) string {
 	// Simple variable substitution for ${var.name} patterns
 	result := content
+
 	for varName, value := range context {
 		placeholder := fmt.Sprintf("${%s}", varName)
 		substitutedValue := fmt.Sprintf("%v", value)
 		result = strings.ReplaceAll(result, placeholder, substitutedValue)
 	}
+
 	return result
 }
 
-// RenderManifest renders a template file (Jinja or HCL) to Kubernetes manifests
+// RenderManifest renders a template file (Jinja or HCL) to Kubernetes manifests.
 func (r *Renderer) RenderManifest(templatePath string, context map[string]any) ([]byte, error) {
 	if r.IsJinjaTemplate(templatePath) {
 		return r.RenderJinjaManifest(templatePath, context)
 	} else if r.IsHCLTemplate(templatePath) {
 		return r.RenderHCLManifest(templatePath, context)
 	}
+
 	return nil, fmt.Errorf("unsupported template type: %s", filepath.Ext(templatePath))
 }
 
-// RenderJinjaManifest renders a Jinja template file to Kubernetes manifests
+// RenderJinjaManifest renders a Jinja template file to Kubernetes manifests.
 func (r *Renderer) RenderJinjaManifest(templatePath string, context map[string]any) ([]byte, error) {
 	// Read the template file
 	templateContent, err := os.ReadFile(templatePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read template file: %v", err)
+		return nil, fmt.Errorf("failed to read template file: %w", err)
 	}
 
 	// Create gonja template
 	template, err := gonja.FromString(string(templateContent))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse template: %v", err)
+		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	// Render the template
 	rendered, err := template.Execute(context)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render template: %v", err)
+		return nil, fmt.Errorf("failed to render template: %w", err)
 	}
 
 	return []byte(rendered), nil

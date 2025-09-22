@@ -5,6 +5,7 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,13 +15,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Config represents the base configuration structure
+// Config represents the base configuration structure.
 type Config struct {
 	Context   string `yaml:"context"`
 	Namespace string `yaml:"namespace"`
 }
 
-// applyCmd represents the apply command
+// applyCmd represents the apply command.
 var applyCmd = &cobra.Command{
 	Use:   "apply [stack]",
 	Short: "Apply templated Kubernetes manifest files to clusters",
@@ -56,6 +57,7 @@ Target specific stacks:
 		if !yes {
 			if !confirmAction("apply", stackFilter) {
 				fmt.Println("Canceled")
+
 				return
 			}
 		}
@@ -111,11 +113,11 @@ func init() {
 }
 
 // findConfigDirectory finds the config directory by walking up the directory tree
-// It only works if there's an actual 'config' directory, not just a config.yaml file
+// It only works if there's an actual 'config' directory, not just a config.yaml file.
 func findConfigDirectory() (string, error) {
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("error getting current directory: %v", err)
+		return "", fmt.Errorf("error getting current directory: %w", err)
 	}
 
 	// Check current directory
@@ -131,19 +133,20 @@ func findConfigDirectory() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("config directory with config.yaml not found in current directory or immediate parent")
+	return "", errors.New("config directory with config.yaml not found in current directory or immediate parent")
 }
 
-// checkConfigDirectory checks if a directory contains a valid config directory
+// checkConfigDirectory checks if a directory contains a valid config directory.
 func checkConfigDirectory(dir string) string {
 	configPath := filepath.Join(dir, "config")
 	if !isValidConfigDirectory(configPath) {
 		return ""
 	}
+
 	return configPath
 }
 
-// isValidConfigDirectory checks if a path is a valid config directory
+// isValidConfigDirectory checks if a path is a valid config directory.
 func isValidConfigDirectory(configPath string) bool {
 	stat, err := os.Stat(configPath)
 	if err != nil || !stat.IsDir() {
@@ -153,5 +156,6 @@ func isValidConfigDirectory(configPath string) bool {
 	// Verify it has a config.yaml file
 	configYamlPath := filepath.Join(configPath, "config.yaml")
 	_, err = os.Stat(configYamlPath)
+
 	return err == nil
 }

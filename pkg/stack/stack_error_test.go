@@ -26,7 +26,7 @@ func TestReadConfigForFileErrors(t *testing.T) {
 	}
 }
 
-// createErrorTestCases creates test cases for error scenarios
+// createErrorTestCases creates test cases for error scenarios.
 func createErrorTestCases() []struct {
 	name        string
 	setup       func(string) error
@@ -51,7 +51,8 @@ func createErrorTestCases() []struct {
 				invalidYAML := `context: test
 project_code: frank
 invalid: [`
-				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(invalidYAML), 0o644)
+
+				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(invalidYAML), 0o600)
 			},
 			expectError: true,
 		},
@@ -60,7 +61,8 @@ invalid: [`
 			setup: func(tempDir string) error {
 				config := `context: test
 version: 1.0.0`
-				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(config), 0o644)
+
+				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(config), 0o600)
 			},
 			expectError: true,
 		},
@@ -70,14 +72,15 @@ version: 1.0.0`
 				config := `context: test
 project_code: frank
 version: 1.0.0`
-				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(config), 0o644)
+
+				return os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(config), 0o600)
 			},
 			expectError: false,
 		},
 	}
 }
 
-// validateErrorTestResult validates the result of an error test
+// validateErrorTestResult validates the result of an error test.
 func validateErrorTestResult(t *testing.T, err error, expectError bool) {
 	if expectError {
 		if err == nil {

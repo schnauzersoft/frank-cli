@@ -5,7 +5,7 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package plan
 
 import (
-	"fmt"
+	"errors"
 	"log/slog"
 	"os"
 	"strings"
@@ -87,9 +87,11 @@ func validatePlanManifestResult(t *testing.T, result PlanResult, expectError boo
 	if expectError && result.Error == nil {
 		t.Errorf("Expected error but got none")
 	}
+
 	if !expectError && result.Error != nil {
 		t.Errorf("Unexpected error: %v", result.Error)
 	}
+
 	if !expectError && result.Operation != expectOperation {
 		t.Errorf("Expected operation %s, got %s", expectOperation, result.Operation)
 	}
@@ -126,6 +128,7 @@ func TestPlanner_convertManifestData(t *testing.T) {
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")
 			}
+
 			if !tt.expectError && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -274,9 +277,11 @@ func validateGenerateDiffResult(t *testing.T, diff, operation string, expectDiff
 	if expectDiff && diff == "" {
 		t.Errorf("Expected diff but got empty string")
 	}
+
 	if !expectDiff && diff != "" {
 		t.Errorf("Expected no diff but got: %s", diff)
 	}
+
 	if operation != expectOperation {
 		t.Errorf("Expected operation %s, got %s", expectOperation, operation)
 	}
@@ -410,6 +415,7 @@ func TestPlanner_writeDiffLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var diff strings.Builder
 			planner.writeDiffLine(&diff, tt.oldLine, tt.newLine)
+
 			result := diff.String()
 			if result != tt.expected {
 				t.Errorf("Expected %q, got %q", tt.expected, result)
@@ -457,6 +463,7 @@ func TestPlanner_writeChangedLines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var diff strings.Builder
 			planner.writeChangedLines(&diff, tt.oldLine, tt.newLine)
+
 			result := diff.String()
 			if result != tt.expected {
 				t.Errorf("Expected %q, got %q", tt.expected, result)
@@ -465,7 +472,7 @@ func TestPlanner_writeChangedLines(t *testing.T) {
 	}
 }
 
-// mockKubernetesDeployer is a mock implementation for testing
+// mockKubernetesDeployer is a mock implementation for testing.
 type mockKubernetesDeployer struct{}
 
 func (m *mockKubernetesDeployer) GetGVR(apiVersion, kind string) (schema.GroupVersionResource, error) {
@@ -478,10 +485,10 @@ func (m *mockKubernetesDeployer) GetGVR(apiVersion, kind string) (schema.GroupVe
 
 func (m *mockKubernetesDeployer) GetResource(gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
 	// Return an error to simulate resource not found (create operation)
-	return nil, fmt.Errorf("resource not found")
+	return nil, errors.New("resource not found")
 }
 
-// Helper function to create a test planner
+// Helper function to create a test planner.
 func createTestPlanner() *Planner {
 	// Create a mock Kubernetes deployer
 	k8sDeployer := &mockKubernetesDeployer{}

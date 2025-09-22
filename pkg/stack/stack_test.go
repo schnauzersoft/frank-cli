@@ -150,7 +150,7 @@ func TestReadConfigForFile(t *testing.T) {
 	}
 }
 
-// setupTestConfigStructure creates the test directory structure and config files
+// setupTestConfigStructure creates the test directory structure and config files.
 func setupTestConfigStructure(t *testing.T) (string, string, string) {
 	tempDir := t.TempDir()
 
@@ -159,13 +159,15 @@ func setupTestConfigStructure(t *testing.T) (string, string, string) {
 project_code: test
 version: 1.0.0
 namespace: default`
-	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o644)
+
+	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to create base config: %v", err)
 	}
 
 	// Create child config
 	childDir := filepath.Join(tempDir, "dev")
+
 	err = os.Mkdir(childDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create child directory: %v", err)
@@ -175,13 +177,15 @@ namespace: default`
 namespace: dev-namespace
 app: web
 version: 2.0.0`
-	err = os.WriteFile(filepath.Join(childDir, "config.yaml"), []byte(childConfig), 0o644)
+
+	err = os.WriteFile(filepath.Join(childDir, "config.yaml"), []byte(childConfig), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to create child config: %v", err)
 	}
 
 	// Create another child config in a subdirectory
 	apiDir := filepath.Join(childDir, "api")
+
 	err = os.Mkdir(apiDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create api directory: %v", err)
@@ -190,7 +194,8 @@ version: 2.0.0`
 	apiConfig := `project_code: test
 app: api
 version: 3.0.0`
-	err = os.WriteFile(filepath.Join(apiDir, "config.yaml"), []byte(apiConfig), 0o644)
+
+	err = os.WriteFile(filepath.Join(apiDir, "config.yaml"), []byte(apiConfig), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to create api config: %v", err)
 	}
@@ -198,32 +203,38 @@ version: 3.0.0`
 	return tempDir, childDir, apiDir
 }
 
-// validateConfigResult validates the result of ReadConfigForFile
+// validateConfigResult validates the result of ReadConfigForFile.
 func validateConfigResult(t *testing.T, config *Config, err error, expectedConfig *Config, expectError bool) {
 	if expectError {
 		if err == nil {
 			t.Errorf("ReadConfigForFile() expected error but got none")
 		}
+
 		return
 	}
 
 	if err != nil {
 		t.Errorf("ReadConfigForFile() unexpected error: %v", err)
+
 		return
 	}
 
 	if config.Context != expectedConfig.Context {
 		t.Errorf("Context = %v, want %v", config.Context, expectedConfig.Context)
 	}
+
 	if config.ProjectCode != expectedConfig.ProjectCode {
 		t.Errorf("ProjectCode = %v, want %v", config.ProjectCode, expectedConfig.ProjectCode)
 	}
+
 	if config.Version != expectedConfig.Version {
 		t.Errorf("Version = %v, want %v", config.Version, expectedConfig.Version)
 	}
+
 	if config.Namespace != expectedConfig.Namespace {
 		t.Errorf("Namespace = %v, want %v", config.Namespace, expectedConfig.Namespace)
 	}
+
 	if config.App != expectedConfig.App {
 		t.Errorf("App = %v, want %v", config.App, expectedConfig.App)
 	}
@@ -237,13 +248,15 @@ func TestGetStackInfo(t *testing.T) {
 	baseConfig := `context: test
 project_code: frank
 version: 1.0.0`
-	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o644)
+
+	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to create base config: %v", err)
 	}
 
 	// Create web config in subdirectory
 	webDir := filepath.Join(tempDir, "web")
+
 	err = os.Mkdir(webDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create web directory: %v", err)
@@ -252,7 +265,8 @@ version: 1.0.0`
 	webConfig := `project_code: frank
 app: web
 version: 2.0.0`
-	err = os.WriteFile(filepath.Join(webDir, "config.yaml"), []byte(webConfig), 0o644)
+
+	err = os.WriteFile(filepath.Join(webDir, "config.yaml"), []byte(webConfig), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to create web config: %v", err)
 	}
@@ -306,15 +320,19 @@ func TestMergeConfigs(t *testing.T) {
 	if merged.Context != "dev" {
 		t.Errorf("Context = %v, want dev", merged.Context)
 	}
+
 	if merged.ProjectCode != "test" {
 		t.Errorf("ProjectCode = %v, want test", merged.ProjectCode)
 	}
+
 	if merged.Version != "2.0.0" {
 		t.Errorf("Version = %v, want 2.0.0", merged.Version)
 	}
+
 	if merged.Namespace != "dev-namespace" {
 		t.Errorf("Namespace = %v, want dev-namespace", merged.Namespace)
 	}
+
 	if merged.App != "child-app" {
 		t.Errorf("App = %v, want child-app", merged.App)
 	}

@@ -19,6 +19,7 @@ func TestLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
+
 	if config.LogLevel != "debug" {
 		t.Errorf("Expected log level 'debug', got '%s'", config.LogLevel)
 	}
@@ -27,31 +28,27 @@ func TestLoadConfig(t *testing.T) {
 	configFile := filepath.Join(tempDir, ".frank.yaml")
 	configContent := `log_level: info
 timeout: 5m`
-	err = os.WriteFile(configFile, []byte(configContent), 0o644)
+
+	err = os.WriteFile(configFile, []byte(configContent), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
 	// Change to temp directory to test config file loading
-	originalDir, _ := os.Getwd()
-	defer func() {
-		if err := os.Chdir(originalDir); err != nil {
-			t.Errorf("Failed to restore original directory: %v", err)
-		}
-	}()
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
-	}
+	t.Chdir(tempDir)
 
 	// Clear environment variable to test file loading
-	if err := os.Unsetenv("FRANK_LOG_LEVEL"); err != nil {
+	err = os.Unsetenv("FRANK_LOG_LEVEL")
+	if err != nil {
 		t.Errorf("Failed to unset environment variable: %v", err)
 	}
 
+	// Load config again after changing directory
 	config, err = LoadConfig()
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
+
 	if config.LogLevel != "info" {
 		t.Errorf("Expected log level 'info', got '%s'", config.LogLevel)
 	}
@@ -63,6 +60,7 @@ func TestGetLogger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
+
 	logLevel := config.GetLogLevel()
 	if logLevel != slog.LevelInfo {
 		t.Errorf("Expected log level to be LevelInfo, got %v", logLevel)

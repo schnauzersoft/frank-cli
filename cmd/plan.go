@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// planCmd represents the plan command
+// planCmd represents the plan command.
 var planCmd = &cobra.Command{
 	Use:   "plan [stack]",
 	Short: "Show what changes would be made without applying them",

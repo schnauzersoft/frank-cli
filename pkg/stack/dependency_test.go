@@ -19,6 +19,7 @@ func TestResolveDependencies_NoDependencies(t *testing.T) {
 	result, err := ResolveDependencies(stacks)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -36,6 +37,7 @@ func TestResolveDependencies_SimpleChain(t *testing.T) {
 	result, err := ResolveDependencies(stacks)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -53,6 +55,7 @@ func TestResolveDependencies_MultipleDependencies(t *testing.T) {
 	result, err := ResolveDependencies(stacks)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -72,6 +75,7 @@ func TestResolveDependencies_ComplexGraph(t *testing.T) {
 	result, err := ResolveDependencies(stacks)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -89,6 +93,7 @@ func TestResolveDependencies_ConfigPathDependencies(t *testing.T) {
 	result, err := ResolveDependencies(stacks)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -106,6 +111,7 @@ func TestResolveDependencies_MixedDependencies(t *testing.T) {
 	result, err := ResolveDependencies(stacks)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -121,8 +127,10 @@ func TestResolveDependencies_CircularDependency(t *testing.T) {
 	_, err := ResolveDependencies(stacks)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "circular dependency detected") {
 		t.Errorf("expected error to contain 'circular dependency detected', got '%s'", err.Error())
 	}
@@ -136,8 +144,10 @@ func TestResolveDependencies_MissingDependency(t *testing.T) {
 	_, err := ResolveDependencies(stacks)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "depends on 'nonexistent' which does not exist") {
 		t.Errorf("expected error to contain 'depends on 'nonexistent' which does not exist', got '%s'", err.Error())
 	}
@@ -151,17 +161,20 @@ func TestResolveDependencies_SelfDependency(t *testing.T) {
 	_, err := ResolveDependencies(stacks)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "circular dependency detected") {
 		t.Errorf("expected error to contain 'circular dependency detected', got '%s'", err.Error())
 	}
 }
 
-// verifyResult verifies that the result matches the expected order and satisfies dependency constraints
+// verifyResult verifies that the result matches the expected order and satisfies dependency constraints.
 func verifyResult(t *testing.T, result []*StackInfo, expectedOrder []string, originalStacks []StackWithDependencies) {
 	if len(result) != len(expectedOrder) {
 		t.Errorf("expected %d stacks, got %d", len(expectedOrder), len(result))
+
 		return
 	}
 
@@ -169,7 +182,7 @@ func verifyResult(t *testing.T, result []*StackInfo, expectedOrder []string, ori
 	verifyDependencyConstraintsWithDebug(t, result, originalStacks)
 }
 
-// verifyStackPresence verifies that all expected stacks are present and no unexpected stacks exist
+// verifyStackPresence verifies that all expected stacks are present and no unexpected stacks exist.
 func verifyStackPresence(t *testing.T, result []*StackInfo, expectedOrder []string) {
 	expectedSet := make(map[string]bool)
 	for _, name := range expectedOrder {
@@ -194,17 +207,19 @@ func verifyStackPresence(t *testing.T, result []*StackInfo, expectedOrder []stri
 	}
 }
 
-// verifyDependencyConstraintsWithDebug verifies dependency constraints and provides debug info if they fail
+// verifyDependencyConstraintsWithDebug verifies dependency constraints and provides debug info if they fail.
 func verifyDependencyConstraintsWithDebug(t *testing.T, result []*StackInfo, originalStacks []StackWithDependencies) {
 	if !verifyDependencyConstraints(result, originalStacks) {
 		t.Errorf("dependency constraints not satisfied")
 		// Debug: print the execution order
 		t.Logf("Execution order:")
+
 		for i, stack := range result {
 			t.Logf("  %d: %s", i, stack.Name)
 		}
 		// Debug: print the original dependencies
 		t.Logf("Original dependencies:")
+
 		for _, stack := range originalStacks {
 			t.Logf("  %s depends on: %v", stack.StackInfo.Name, stack.DependsOn)
 		}
@@ -241,8 +256,10 @@ func TestValidateDependencies_MissingDependency(t *testing.T) {
 	err := validateDependencies(stackMap, stacks)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "depends on 'nonexistent' which does not exist") {
 		t.Errorf("expected error to contain 'depends on 'nonexistent' which does not exist', got '%s'", err.Error())
 	}
@@ -261,8 +278,10 @@ func TestValidateDependencies_MultipleMissingDependencies(t *testing.T) {
 	err := validateDependencies(stackMap, stacks)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "depends on 'missing1' which does not exist") {
 		t.Errorf("expected error to contain 'depends on 'missing1' which does not exist', got '%s'", err.Error())
 	}
@@ -290,8 +309,10 @@ func TestDetectCircularDependencies_SimpleCircular(t *testing.T) {
 	err := detectCircularDependencies(graph)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "circular dependency detected") {
 		t.Errorf("expected error to contain 'circular dependency detected', got '%s'", err.Error())
 	}
@@ -305,8 +326,10 @@ func TestDetectCircularDependencies_SelfDependency(t *testing.T) {
 	err := detectCircularDependencies(graph)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "circular dependency detected") {
 		t.Errorf("expected error to contain 'circular dependency detected', got '%s'", err.Error())
 	}
@@ -322,8 +345,10 @@ func TestDetectCircularDependencies_ComplexCircular(t *testing.T) {
 	err := detectCircularDependencies(graph)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "circular dependency detected") {
 		t.Errorf("expected error to contain 'circular dependency detected', got '%s'", err.Error())
 	}
@@ -340,8 +365,10 @@ func TestDetectCircularDependencies_MultipleComponents(t *testing.T) {
 	err := detectCircularDependencies(graph)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "circular dependency detected") {
 		t.Errorf("expected error to contain 'circular dependency detected', got '%s'", err.Error())
 	}
@@ -358,6 +385,7 @@ func TestTopologicalSort_SimpleLinear(t *testing.T) {
 	result, err := topologicalSort(graph)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -375,6 +403,7 @@ func TestTopologicalSort_MultipleRoots(t *testing.T) {
 	result, err := topologicalSort(graph)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -394,6 +423,7 @@ func TestTopologicalSort_ComplexGraph(t *testing.T) {
 	result, err := topologicalSort(graph)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
@@ -409,8 +439,10 @@ func TestTopologicalSort_CircularGraph(t *testing.T) {
 	_, err := topologicalSort(graph)
 	if err == nil {
 		t.Errorf("expected error but got none")
+
 		return
 	}
+
 	if !containsString(err.Error(), "graph contains cycles") {
 		t.Errorf("expected error to contain 'graph contains cycles', got '%s'", err.Error())
 	}
@@ -423,16 +455,18 @@ func TestTopologicalSort_EmptyGraph(t *testing.T) {
 	result, err := topologicalSort(graph)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+
 		return
 	}
 
 	verifyTopologicalResult(t, result, expectedOrder)
 }
 
-// verifyTopologicalResult verifies that the topological sort result contains all expected items
+// verifyTopologicalResult verifies that the topological sort result contains all expected items.
 func verifyTopologicalResult(t *testing.T, result, expectedOrder []string) {
 	if len(result) != len(expectedOrder) {
 		t.Errorf("expected %d items, got %d", len(expectedOrder), len(result))
+
 		return
 	}
 
@@ -461,7 +495,7 @@ func verifyTopologicalResult(t *testing.T, result, expectedOrder []string) {
 }
 
 // verifyDependencyConstraints checks that all dependency constraints are satisfied
-// in the given execution order
+// in the given execution order.
 func verifyDependencyConstraints(executionOrder []*StackInfo, originalStacks []StackWithDependencies) bool {
 	dependencyMap := buildDependencyMap(originalStacks)
 	positionMap := buildPositionMap(executionOrder)
@@ -469,35 +503,38 @@ func verifyDependencyConstraints(executionOrder []*StackInfo, originalStacks []S
 	return checkAllDependencyConstraints(executionOrder, dependencyMap, positionMap)
 }
 
-// buildDependencyMap creates a map of stack names to their dependencies
+// buildDependencyMap creates a map of stack names to their dependencies.
 func buildDependencyMap(originalStacks []StackWithDependencies) map[string][]string {
 	dependencyMap := make(map[string][]string)
 	for _, stack := range originalStacks {
 		dependencyMap[stack.StackInfo.Name] = stack.DependsOn
 	}
+
 	return dependencyMap
 }
 
-// buildPositionMap creates a map of stack names to their position in execution order
+// buildPositionMap creates a map of stack names to their position in execution order.
 func buildPositionMap(executionOrder []*StackInfo) map[string]int {
 	positionMap := make(map[string]int)
 	for i, stack := range executionOrder {
 		positionMap[stack.Name] = i
 	}
+
 	return positionMap
 }
 
-// checkAllDependencyConstraints verifies that all dependency constraints are satisfied
+// checkAllDependencyConstraints verifies that all dependency constraints are satisfied.
 func checkAllDependencyConstraints(executionOrder []*StackInfo, dependencyMap map[string][]string, positionMap map[string]int) bool {
 	for _, stack := range executionOrder {
 		if !checkStackDependencyConstraints(stack, dependencyMap, positionMap) {
 			return false
 		}
 	}
+
 	return true
 }
 
-// checkStackDependencyConstraints checks dependency constraints for a single stack
+// checkStackDependencyConstraints checks dependency constraints for a single stack.
 func checkStackDependencyConstraints(stack *StackInfo, dependencyMap map[string][]string, positionMap map[string]int) bool {
 	dependencies := dependencyMap[stack.Name]
 	stackPosition := positionMap[stack.Name]
@@ -507,10 +544,11 @@ func checkStackDependencyConstraints(stack *StackInfo, dependencyMap map[string]
 			return false
 		}
 	}
+
 	return true
 }
 
-// checkSingleDependencyConstraint checks a single dependency constraint
+// checkSingleDependencyConstraint checks a single dependency constraint.
 func checkSingleDependencyConstraint(dep string, stackPosition int, positionMap map[string]int) bool {
 	depPosition, exists := positionMap[dep]
 	if !exists {
@@ -521,7 +559,7 @@ func checkSingleDependencyConstraint(dep string, stackPosition int, positionMap 
 	return depPosition < stackPosition
 }
 
-// Helper function to check if a string contains a substring
+// Helper function to check if a string contains a substring.
 func containsString(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > len(substr) && (s[:len(substr)] == substr ||
@@ -535,6 +573,7 @@ func containsStringHelper(s, substr string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -634,12 +673,14 @@ func TestResolveDependencyReferences_Unknown(t *testing.T) {
 	verifyDependencyReferences(t, result, expected)
 }
 
-// verifyDependencyReferences verifies the result of dependency reference resolution
+// verifyDependencyReferences verifies the result of dependency reference resolution.
 func verifyDependencyReferences(t *testing.T, result, expected []string) {
 	if len(result) != len(expected) {
 		t.Errorf("Expected length %d, got %d", len(expected), len(result))
+
 		return
 	}
+
 	for i, exp := range expected {
 		if result[i] != exp {
 			t.Errorf("Expected %q at index %d, got %q", exp, i, result[i])

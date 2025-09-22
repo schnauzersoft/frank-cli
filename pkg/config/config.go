@@ -5,6 +5,7 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,7 +15,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config represents the application configuration
+// Config represents the application configuration.
 type Config struct {
 	LogLevel string `mapstructure:"log_level"`
 }
@@ -24,13 +25,14 @@ type Config struct {
 // 1. Environment variables
 // 2. .frank.yaml (current directory)
 // 3. $HOME/.frank/config.yaml
-// 4. /etc/frank/config.yaml
+// 4. /etc/frank/config.yaml.
 func LoadConfig() (*Config, error) {
 	// Set up Viper
 	setupViper()
 
 	// Load config files in order of precedence
-	if err := loadConfigFiles(); err != nil {
+	err := loadConfigFiles()
+	if err != nil {
 		return nil, err
 	}
 
@@ -38,7 +40,7 @@ func LoadConfig() (*Config, error) {
 	return unmarshalConfig()
 }
 
-// setupViper configures Viper with environment variables and defaults
+// setupViper configures Viper with environment variables and defaults.
 func setupViper() {
 	viper.SetConfigType("yaml")
 	viper.SetConfigName(".frank")
@@ -49,7 +51,8 @@ func setupViper() {
 	viper.AutomaticEnv()
 
 	// Bind environment variables
-	if err := viper.BindEnv("log_level", "FRANK_LOG_LEVEL"); err != nil {
+	err := viper.BindEnv("log_level", "FRANK_LOG_LEVEL")
+	if err != nil {
 		// Log the error but continue - this is not critical
 		fmt.Printf("Warning: failed to bind environment variable: %v\n", err)
 	}
@@ -58,15 +61,17 @@ func setupViper() {
 	viper.SetDefault("log_level", "info")
 }
 
-// loadConfigFiles loads configuration files in order of precedence
+// loadConfigFiles loads configuration files in order of precedence.
 func loadConfigFiles() error {
 	// 1. Current directory (.frank.yaml)
-	if err := loadCurrentDirectoryConfig(); err != nil {
+	err := loadCurrentDirectoryConfig()
+	if err != nil {
 		return err
 	}
 
 	// 2. Home directory ($HOME/.frank/config.yaml)
-	if err := loadHomeConfig(); err != nil {
+	err = loadHomeConfig()
+	if err != nil {
 		return err
 	}
 
@@ -74,55 +79,75 @@ func loadConfigFiles() error {
 	return loadSystemConfig()
 }
 
-// loadCurrentDirectoryConfig loads config from current directory
+// loadCurrentDirectoryConfig loads config from current directory.
 func loadCurrentDirectoryConfig() error {
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return fmt.Errorf("error reading config file: %v", err)
+	err := viper.ReadInConfig()
+	if err != nil {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
+			// Config file not found is okay, we'll try other locations
+			return nil
 		}
-		// Config file not found is okay, we'll try other locations
+
+		return fmt.Errorf("error reading config file: %w", err)
 	}
+
 	return nil
 }
 
-// loadHomeConfig loads config from home directory
+// loadHomeConfig loads config from home directory.
 func loadHomeConfig() error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
+		//nolint:nilerr
 		return nil // Home directory not available, skip
 	}
 
 	homeConfigPath := filepath.Join(homeDir, ".frank", "config.yaml")
-	if _, err := os.Stat(homeConfigPath); err != nil {
+
+	_, err = os.Stat(homeConfigPath)
+	if err != nil {
+		//nolint:nilerr
 		return nil // File doesn't exist, skip
 	}
 
 	viper.SetConfigFile(homeConfigPath)
-	if err := viper.MergeInConfig(); err != nil {
-		return fmt.Errorf("error reading home config file: %v", err)
+
+	err = viper.MergeInConfig()
+	if err != nil {
+		return fmt.Errorf("error reading home config file: %w", err)
 	}
+
 	return nil
 }
 
-// loadSystemConfig loads config from system directory
+// loadSystemConfig loads config from system directory.
 func loadSystemConfig() error {
 	systemConfigPath := "/etc/frank/config.yaml"
-	if _, err := os.Stat(systemConfigPath); err != nil {
+
+	_, err := os.Stat(systemConfigPath)
+	if err != nil {
+		//nolint:nilerr
 		return nil // File doesn't exist, skip
 	}
 
 	viper.SetConfigFile(systemConfigPath)
-	if err := viper.MergeInConfig(); err != nil {
-		return fmt.Errorf("error reading system config file: %v", err)
+
+	err = viper.MergeInConfig()
+	if err != nil {
+		return fmt.Errorf("error reading system config file: %w", err)
 	}
+
 	return nil
 }
 
-// unmarshalConfig unmarshals and normalizes the configuration
+// unmarshalConfig unmarshals and normalizes the configuration.
 func unmarshalConfig() (*Config, error) {
 	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
-		return nil, fmt.Errorf("error unmarshaling config: %v", err)
+
+	err := viper.Unmarshal(&config)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
 	// Normalize log level
@@ -131,7 +156,7 @@ func unmarshalConfig() (*Config, error) {
 	return &config, nil
 }
 
-// GetLogLevel returns the appropriate slog.Level based on the configuration
+// GetLogLevel returns the appropriate slog.Level based on the configuration.
 func (c *Config) GetLogLevel() slog.Level {
 	switch c.LogLevel {
 	case "debug":
@@ -147,7 +172,7 @@ func (c *Config) GetLogLevel() slog.Level {
 	}
 }
 
-// GetConfigSources returns information about which config sources were used
+// GetConfigSources returns information about which config sources were used.
 func GetConfigSources() []string {
 	var sources []string
 
@@ -158,22 +183,26 @@ func GetConfigSources() []string {
 
 	// Check current directory
 	if viper.ConfigFileUsed() != "" && strings.Contains(viper.ConfigFileUsed(), ".frank") {
-		sources = append(sources, fmt.Sprintf("config file %s", viper.ConfigFileUsed()))
+		sources = append(sources, "config file "+viper.ConfigFileUsed())
 	}
 
 	// Check home directory
 	homeDir, err := os.UserHomeDir()
 	if err == nil {
 		homeConfigPath := filepath.Join(homeDir, ".frank", "config.yaml")
-		if _, err := os.Stat(homeConfigPath); err == nil {
-			sources = append(sources, fmt.Sprintf("home config file %s", homeConfigPath))
+
+		_, err = os.Stat(homeConfigPath)
+		if err == nil {
+			sources = append(sources, "home config file "+homeConfigPath)
 		}
 	}
 
 	// Check system directory
 	systemConfigPath := "/etc/frank/config.yaml"
-	if _, err := os.Stat(systemConfigPath); err == nil {
-		sources = append(sources, fmt.Sprintf("system config file %s", systemConfigPath))
+
+	_, err = os.Stat(systemConfigPath)
+	if err == nil {
+		sources = append(sources, "system config file "+systemConfigPath)
 	}
 
 	return sources

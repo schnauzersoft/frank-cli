@@ -1,0 +1,78 @@
+version: "2"
+linters:
+  default: all
+  disable:
+    - err113
+    - exhaustruct
+    - forbidigo
+    - forcetypeassert
+    - funcorder
+    - funlen
+    - gochecknoglobals
+    - gochecknoinits
+    - goconst
+    - lll
+    - mnd
+    - paralleltest
+    - revive
+    - tagliatelle
+    - testpackage
+    - thelper
+    - unparam
+    - varnamelen
+    - wrapcheck
+    - wsl
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+  settings:
+    depguard:
+      rules:
+        main:
+          allow:
+            - $gostd
+            - "gopkg.in/yaml.v3"
+            - "github.com/hashicorp/hcl/v2"
+            - "github.com/hashicorp/hcl/v2/hclparse"
+            - "github.com/lmittmann/tint"
+            - "github.com/nikolalohinski/gonja"
+            - "github.com/schnauzersoft/frank-cli/cmd"
+            - "github.com/schnauzersoft/frank-cli/pkg/config"
+            - "github.com/schnauzersoft/frank-cli/pkg/deploy"
+            - "github.com/schnauzersoft/frank-cli/pkg/kubernetes"
+            - "github.com/schnauzersoft/frank-cli/pkg/plan"
+            - "github.com/schnauzersoft/frank-cli/pkg/stack"
+            - "github.com/schnauzersoft/frank-cli/pkg/template"
+            - "github.com/spf13/cobra"
+            - "github.com/spf13/viper"
+            - "github.com/zclconf/go-cty/cty"
+            - "k8s.io/apimachinery/pkg/apis/meta/v1"
+            - "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+            - "k8s.io/apimachinery/pkg/runtime/schema"
+            - "k8s.io/apimachinery/pkg/util/yaml"
+            - "k8s.io/client-go/dynamic"
+            - "k8s.io/client-go/kubernetes"
+            - "k8s.io/client-go/rest"
+            - "k8s.io/client-go/tools/clientcmd"
+    dupl:
+      threshold: 170
+formatters:
+  enable:
+    - gofumpt
+  settings:
+    gofumpt:
+      extra-rules: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

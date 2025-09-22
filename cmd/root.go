@@ -15,13 +15,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Global configuration and logger
+// Global configuration and logger.
 var (
 	appConfig *config.Config
 	logger    *slog.Logger
 )
 
-// rootCmd represents the base command when called without any subcommands
+// rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:   "frank",
 	Short: "A CLI tool for applying templated Kubernetes manifest files",
@@ -69,12 +69,12 @@ func Execute() {
 	}
 }
 
-// GetConfig returns the global application configuration
+// GetConfig returns the global application configuration.
 func GetConfig() *config.Config {
 	return appConfig
 }
 
-// GetLogger returns the global logger
+// GetLogger returns the global logger.
 func GetLogger() *slog.Logger {
 	return logger
 }

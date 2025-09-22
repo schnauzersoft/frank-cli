@@ -5,6 +5,7 @@ Copyright © 2025 Ben Sapp ya.bsapp.ru
 package stack
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the base configuration structure
+// Config represents the base configuration structure.
 type Config struct {
 	Context     string `yaml:"context"`
 	ProjectCode string `yaml:"project_code"`
@@ -22,7 +23,7 @@ type Config struct {
 	Version     string `yaml:"version"`
 }
 
-// StackInfo represents information about a stack
+// StackInfo represents information about a stack.
 type StackInfo struct {
 	Name        string
 	Context     string
@@ -33,7 +34,7 @@ type StackInfo struct {
 	ConfigPath  string
 }
 
-// GenerateStackName creates a stack name from project_code, context, and config file name
+// GenerateStackName creates a stack name from project_code, context, and config file name.
 func GenerateStackName(projectCode, context, configFilePath string) string {
 	// Get the file name without extension
 	fileName := filepath.Base(configFilePath)
@@ -49,7 +50,7 @@ func GenerateStackName(projectCode, context, configFilePath string) string {
 	return stackName
 }
 
-// GenerateFallbackStackName creates a fallback stack name when config reading fails
+// GenerateFallbackStackName creates a fallback stack name when config reading fails.
 func GenerateFallbackStackName(configFilePath string) string {
 	// Get the file name without extension
 	fileName := filepath.Base(configFilePath)
@@ -71,13 +72,14 @@ func GenerateFallbackStackName(configFilePath string) string {
 	return stackName
 }
 
-// ReadConfigForFile reads the context configuration with inheritance support for a specific file
+// ReadConfigForFile reads the context configuration with inheritance support for a specific file.
 func ReadConfigForFile(configFilePath string) (*Config, error) {
 	// Determine the config directory for this file
 	configDir := filepath.Dir(configFilePath)
 
 	// Start with the config in the same directory as the file
 	configPath := filepath.Join(configDir, "config.yaml")
+
 	config, err := readConfigFile(configPath)
 	if err != nil {
 		return nil, err
@@ -90,6 +92,7 @@ func ReadConfigForFile(configFilePath string) (*Config, error) {
 	// If we're in a subdirectory (like config/dev/), try to read parent config
 	if filepath.Base(currentDir) != "config" && filepath.Base(currentDir) != "." {
 		parentConfigPath := filepath.Join(parentDir, "config.yaml")
+
 		parentConfig, err := readConfigFile(parentConfigPath)
 		if err == nil {
 			// Merge parent config with child config (child overrides parent)
@@ -98,17 +101,17 @@ func ReadConfigForFile(configFilePath string) (*Config, error) {
 	}
 
 	if config.Context == "" {
-		return nil, fmt.Errorf("context not specified in config files")
+		return nil, errors.New("context not specified in config files")
 	}
 
 	if config.ProjectCode == "" {
-		return nil, fmt.Errorf("project_code not specified in config files")
+		return nil, errors.New("project_code not specified in config files")
 	}
 
 	return config, nil
 }
 
-// extractAppNameFromFilename extracts the app name from a config file path
+// extractAppNameFromFilename extracts the app name from a config file path.
 func extractAppNameFromFilename(configFilePath string) string {
 	// Get the file name without extension
 	fileName := filepath.Base(configFilePath)
@@ -120,11 +123,12 @@ func extractAppNameFromFilename(configFilePath string) string {
 	return fileName
 }
 
-// GetStackInfo extracts stack information from a config file path
+// GetStackInfo extracts stack information from a config file path.
 func GetStackInfo(configFilePath string) (*StackInfo, error) {
 	config, err := ReadConfigForFile(configFilePath)
 	if err != nil {
 		// Return fallback stack info if config reading fails
+		//nolint:nilerr
 		return &StackInfo{
 			Name:        GenerateFallbackStackName(configFilePath),
 			Context:     "unknown",
@@ -155,7 +159,7 @@ func GetStackInfo(configFilePath string) (*StackInfo, error) {
 	}, nil
 }
 
-// readConfigFile reads a single config file
+// readConfigFile reads a single config file.
 func readConfigFile(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -163,6 +167,7 @@ func readConfigFile(configPath string) (*Config, error) {
 	}
 
 	var config Config
+
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
 		return nil, err
@@ -171,7 +176,7 @@ func readConfigFile(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-// mergeConfigs merges parent and child configs (child overrides parent)
+// mergeConfigs merges parent and child configs (child overrides parent).
 func mergeConfigs(parent, child *Config) *Config {
 	result := &Config{
 		Context:     parent.Context,
@@ -185,15 +190,19 @@ func mergeConfigs(parent, child *Config) *Config {
 	if child.Context != "" {
 		result.Context = child.Context
 	}
+
 	if child.ProjectCode != "" {
 		result.ProjectCode = child.ProjectCode
 	}
+
 	if child.Namespace != "" {
 		result.Namespace = child.Namespace
 	}
+
 	if child.App != "" {
 		result.App = child.App
 	}
+
 	if child.Version != "" {
 		result.Version = child.Version
 	}
@@ -201,38 +210,45 @@ func mergeConfigs(parent, child *Config) *Config {
 	return result
 }
 
-// StackWithDependencies represents a stack with its dependencies
+// StackWithDependencies represents a stack with its dependencies.
 type StackWithDependencies struct {
 	StackInfo *StackInfo
 	DependsOn []string
 }
 
-// ResolveDependencies resolves the execution order for stacks based on their dependencies
+// ResolveDependencies resolves the execution order for stacks based on their dependencies.
 func ResolveDependencies(stacksWithDeps []StackWithDependencies) ([]*StackInfo, error) {
 	// Create maps for both stack names and config file paths
 	stackMap := make(map[string]*StackInfo)
 	configPathMap := make(map[string]*StackInfo)
-	graph := make(map[string][]string)
 
+	// First pass: build the maps
 	for _, stackWithDep := range stacksWithDeps {
 		stackMap[stackWithDep.StackInfo.Name] = stackWithDep.StackInfo
 
 		// Create a relative config path for easier referencing
 		configPath := getRelativeConfigPath(stackWithDep.StackInfo.ConfigPath)
 		configPathMap[configPath] = stackWithDep.StackInfo
+	}
 
+	// Second pass: resolve dependencies using the complete maps
+	graph := make(map[string][]string)
+
+	for _, stackWithDep := range stacksWithDeps {
 		// Convert dependencies from config paths to stack names
 		resolvedDeps := resolveDependencyReferences(stackWithDep.DependsOn, stackMap, configPathMap)
 		graph[stackWithDep.StackInfo.Name] = resolvedDeps
 	}
 
 	// Validate dependencies exist
-	if err := validateDependencies(stackMap, stacksWithDeps); err != nil {
+	err := validateDependencies(stackMap, stacksWithDeps)
+	if err != nil {
 		return nil, err
 	}
 
 	// Check for circular dependencies
-	if err := detectCircularDependencies(graph); err != nil {
+	err = detectCircularDependencies(graph)
+	if err != nil {
 		return nil, err
 	}
 
@@ -250,6 +266,7 @@ func ResolveDependencies(stacksWithDeps []StackWithDependencies) ([]*StackInfo, 
 
 	// Convert back to StackInfo slice in execution order
 	var orderedStacks []*StackInfo
+
 	for _, stackName := range executionOrder {
 		if stack, exists := stackMap[stackName]; exists {
 			orderedStacks = append(orderedStacks, stack)
@@ -259,7 +276,7 @@ func ResolveDependencies(stacksWithDeps []StackWithDependencies) ([]*StackInfo, 
 	return orderedStacks, nil
 }
 
-// validateDependencies checks that all dependencies exist
+// validateDependencies checks that all dependencies exist.
 func validateDependencies(stackMap map[string]*StackInfo, stacksWithDeps []StackWithDependencies) error {
 	// Create config path map for validation
 	configPathMap := make(map[string]*StackInfo)
@@ -279,17 +296,19 @@ func validateDependencies(stackMap map[string]*StackInfo, stacksWithDeps []Stack
 			}
 		}
 	}
+
 	return nil
 }
 
-// detectCircularDependencies checks for circular dependencies using DFS
+// detectCircularDependencies checks for circular dependencies using DFS.
 func detectCircularDependencies(graph map[string][]string) error {
 	visited := make(map[string]bool)
 	recStack := make(map[string]bool)
 
 	for node := range graph {
 		if !visited[node] {
-			if err := detectCircularDependenciesFromNode(graph, node, visited, recStack); err != nil {
+			err := detectCircularDependenciesFromNode(graph, node, visited, recStack)
+			if err != nil {
 				return err
 			}
 		}
@@ -298,14 +317,15 @@ func detectCircularDependencies(graph map[string][]string) error {
 	return nil
 }
 
-// detectCircularDependenciesFromNode performs DFS from a specific node to detect cycles
+// detectCircularDependenciesFromNode performs DFS from a specific node to detect cycles.
 func detectCircularDependenciesFromNode(graph map[string][]string, node string, visited, recStack map[string]bool) error {
 	visited[node] = true
 	recStack[node] = true
 
 	for _, neighbor := range graph[node] {
 		if !visited[neighbor] {
-			if err := detectCircularDependenciesFromNode(graph, neighbor, visited, recStack); err != nil {
+			err := detectCircularDependenciesFromNode(graph, neighbor, visited, recStack)
+			if err != nil {
 				return err
 			}
 		} else if recStack[neighbor] {
@@ -314,10 +334,11 @@ func detectCircularDependenciesFromNode(graph map[string][]string, node string, 
 	}
 
 	recStack[node] = false
+
 	return nil
 }
 
-// topologicalSort performs topological sorting using Kahn's algorithm
+// topologicalSort performs topological sorting using Kahn's algorithm.
 func topologicalSort(graph map[string][]string) ([]string, error) {
 	inDegree := calculateInDegrees(graph)
 	queue := findNodesWithNoIncomingEdges(inDegree)
@@ -329,20 +350,22 @@ func topologicalSort(graph map[string][]string) ([]string, error) {
 
 	// Check if all nodes were processed
 	if len(result) != len(graph) {
-		return nil, fmt.Errorf("graph contains cycles or unreachable nodes")
+		return nil, errors.New("graph contains cycles or unreachable nodes")
 	}
 
 	return result, nil
 }
 
-// getRelativeConfigPath creates a relative path from the config directory
+// getRelativeConfigPath creates a relative path from the config directory.
 func getRelativeConfigPath(fullPath string) string {
 	// Find the config directory in the path
 	parts := strings.Split(fullPath, string(filepath.Separator))
 	configIndex := -1
+
 	for i, part := range parts {
 		if part == "config" {
 			configIndex = i
+
 			break
 		}
 	}
@@ -354,23 +377,26 @@ func getRelativeConfigPath(fullPath string) string {
 
 	// Return the path relative to the config directory
 	relativeParts := parts[configIndex+1:]
+
 	return strings.Join(relativeParts, string(filepath.Separator))
 }
 
-// resolveDependencyReferences converts dependency references from config paths to stack names
+// resolveDependencyReferences converts dependency references from config paths to stack names.
 func resolveDependencyReferences(deps []string, stackMap, configPathMap map[string]*StackInfo) []string {
-	var resolved []string
+	resolved := make([]string, 0, len(deps))
 
 	for _, dep := range deps {
 		// First try to resolve as a config path
 		if stack, exists := configPathMap[dep]; exists {
 			resolved = append(resolved, stack.Name)
+
 			continue
 		}
 
 		// If not found as config path, try as stack name
 		if _, exists := stackMap[dep]; exists {
 			resolved = append(resolved, dep)
+
 			continue
 		}
 
@@ -381,7 +407,7 @@ func resolveDependencyReferences(deps []string, stackMap, configPathMap map[stri
 	return resolved
 }
 
-// calculateInDegrees calculates the in-degree for each node in the graph
+// calculateInDegrees calculates the in-degree for each node in the graph.
 func calculateInDegrees(graph map[string][]string) map[string]int {
 	inDegree := make(map[string]int)
 	for node := range graph {
@@ -397,18 +423,20 @@ func calculateInDegrees(graph map[string][]string) map[string]int {
 	return inDegree
 }
 
-// findNodesWithNoIncomingEdges finds all nodes with no incoming edges
+// findNodesWithNoIncomingEdges finds all nodes with no incoming edges.
 func findNodesWithNoIncomingEdges(inDegree map[string]int) []string {
 	queue := make([]string, 0)
+
 	for node, degree := range inDegree {
 		if degree == 0 {
 			queue = append(queue, node)
 		}
 	}
+
 	return queue
 }
 
-// processTopologicalQueue processes the queue for topological sorting
+// processTopologicalQueue processes the queue for topological sorting.
 func processTopologicalQueue(graph map[string][]string, inDegree map[string]int, queue []string) ([]string, error) {
 	var result []string
 
@@ -416,6 +444,7 @@ func processTopologicalQueue(graph map[string][]string, inDegree map[string]int,
 		// Remove a node from the queue
 		node := queue[0]
 		queue = queue[1:]
+
 		result = append(result, node)
 
 		// Reduce in-degree for all neighbors

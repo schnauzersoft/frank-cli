@@ -35,6 +35,7 @@ func (d *Deployer) deploymentNeedsUpdate(existing, desired map[string]any) bool 
 	// Compare replicas
 	if !d.compareField(existing, desired, "replicas") {
 		d.logger.Debug("Deployment needs update: replicas differ", "existing", existing["replicas"], "desired", desired["replicas"])
+
 		return true
 	}
 
@@ -44,10 +45,12 @@ func (d *Deployer) deploymentNeedsUpdate(existing, desired map[string]any) bool 
 
 	if !d.templateEqual(existingTemplate, desiredTemplate) {
 		d.logger.Debug("Deployment needs update: template differs")
+
 		return true
 	}
 
 	d.logger.Debug("Deployment is up to date")
+
 	return false
 }
 
@@ -179,10 +182,11 @@ func (d *Deployer) compareContainerOtherFields(existing, desired map[string]any)
 			return false
 		}
 	}
+
 	return true
 }
 
-// comparePorts compares port slices, handling default TCP protocol
+// comparePorts compares port slices, handling default TCP protocol.
 func (d *Deployer) comparePorts(existing, desired []any) bool {
 	if len(existing) != len(desired) {
 		return false
@@ -229,6 +233,7 @@ func (d *Deployer) getPortProtocol(portMap map[string]any) string {
 	if protocol == nil {
 		return "TCP"
 	}
+
 	return protocol.(string)
 }
 
@@ -239,6 +244,7 @@ func (d *Deployer) comparePortOtherFields(existing, desired map[string]any) bool
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -250,26 +256,27 @@ func (d *Deployer) compareField(existing, desired map[string]any, field string) 
 	if existingVal == nil && desiredVal == nil {
 		return true
 	}
+
 	if existingVal == nil || desiredVal == nil {
 		return false
 	}
 
 	// For slices and maps, use deep comparison
-	switch existingVal.(type) {
+	switch existingTyped := existingVal.(type) {
 	case []any:
-		existingSlice, _ := existingVal.([]any)
 		desiredSlice, ok := desiredVal.([]any)
 		if !ok {
 			return false
 		}
-		return d.slicesEqual(existingSlice, desiredSlice)
+
+		return d.slicesEqual(existingTyped, desiredSlice)
 	case map[string]any:
-		existingMap, _ := existingVal.(map[string]any)
 		desiredMap, ok := desiredVal.(map[string]any)
 		if !ok {
 			return false
 		}
-		return d.mapsEqual(existingMap, desiredMap)
+
+		return d.mapsEqual(existingTyped, desiredMap)
 	default:
 		return existingVal == desiredVal
 	}
@@ -315,12 +322,14 @@ func (d *Deployer) valuesEqual(existing, desired any) bool {
 		if !ok {
 			return false
 		}
+
 		return d.mapsEqual(existingVal, desiredMap)
 	case []any:
 		desiredSlice, ok := desired.([]any)
 		if !ok {
 			return false
 		}
+
 		return d.slicesEqual(existingVal, desiredSlice)
 	default:
 		return existingVal == desired

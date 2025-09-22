@@ -1,7 +1,7 @@
 package deploy
 
 import (
-	"fmt"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -33,7 +33,7 @@ func TestFilterConfigFilesByStack(t *testing.T) {
 	}
 }
 
-// createTestConfigFiles creates the test directory structure and config files
+// createTestConfigFiles creates the test directory structure and config files.
 func createTestConfigFiles(t *testing.T, tempDir string) []string {
 	configFiles := []string{
 		filepath.Join(tempDir, "app.yaml"),
@@ -48,10 +48,14 @@ func createTestConfigFiles(t *testing.T, tempDir string) []string {
 	// Create the directory structure
 	for _, file := range configFiles {
 		dir := filepath.Dir(file)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+
+		err := os.MkdirAll(dir, 0o755)
+		if err != nil {
 			t.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
-		if err := os.WriteFile(file, []byte("manifest: test.yaml"), 0o644); err != nil {
+
+		err = os.WriteFile(file, []byte("manifest: test.yaml"), 0o600)
+		if err != nil {
 			t.Fatalf("Failed to create file %s: %v", file, err)
 		}
 	}
@@ -59,7 +63,7 @@ func createTestConfigFiles(t *testing.T, tempDir string) []string {
 	return configFiles
 }
 
-// createFilterTestCases creates test cases for filtering
+// createFilterTestCases creates test cases for filtering.
 func createFilterTestCases(tempDir string) []struct {
 	name        string
 	configFiles []string
@@ -131,10 +135,11 @@ func createFilterTestCases(tempDir string) []struct {
 	}
 }
 
-// validateFilterResult validates the result of filtering
+// validateFilterResult validates the result of filtering.
 func validateFilterResult(t *testing.T, result, expected []string) {
 	if len(result) != len(expected) {
 		t.Errorf("filterConfigFilesByStack() returned %d files, want %d", len(result), len(expected))
+
 		return
 	}
 
@@ -230,7 +235,8 @@ func TestValidateNamespaceConfiguration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary manifest file
 			manifestPath := filepath.Join(tempDir, "test-manifest.yaml")
-			err := os.WriteFile(manifestPath, []byte(tt.manifestContent), 0o644)
+
+			err := os.WriteFile(manifestPath, []byte(tt.manifestContent), 0o600)
 			if err != nil {
 				t.Fatalf("Failed to create manifest file: %v", err)
 			}
@@ -242,7 +248,7 @@ func TestValidateNamespaceConfiguration(t *testing.T) {
 	}
 }
 
-// createNamespaceValidationTestCases creates test cases for namespace validation
+// createNamespaceValidationTestCases creates test cases for namespace validation.
 func createNamespaceValidationTestCases() []struct {
 	name            string
 	manifestContent string
@@ -333,24 +339,24 @@ spec:
 	}
 }
 
-// validateNamespaceTestResult validates the result of namespace validation test
+// validateNamespaceTestResult validates the result of namespace validation test.
 func validateNamespaceTestResult(t *testing.T, err error, expectError bool, errorContains string) {
 	if expectError {
 		if err == nil {
 			t.Errorf("validateNamespaceConfiguration() expected error but got none")
+
 			return
 		}
+
 		if errorContains != "" && !contains(err.Error(), errorContains) {
 			t.Errorf("validateNamespaceConfiguration() error = %v, want error containing %s", err, errorContains)
 		}
-	} else {
-		if err != nil {
-			t.Errorf("validateNamespaceConfiguration() unexpected error: %v", err)
-		}
+	} else if err != nil {
+		t.Errorf("validateNamespaceConfiguration() unexpected error: %v", err)
 	}
 }
 
-// Helper function to check if a string contains a substring
+// Helper function to check if a string contains a substring.
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || (len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsInMiddle(s, substr))))
 }
@@ -361,10 +367,11 @@ func containsInMiddle(s, substr string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
-// TestDeployResultErrorHandling tests that DeployResult errors are properly handled
+// TestDeployResultErrorHandling tests that DeployResult errors are properly handled.
 func TestDeployResultErrorHandling(t *testing.T) {
 	deployer := &Deployer{
 		logger: slog.Default(),
@@ -388,6 +395,7 @@ func TestDeployResultErrorHandling(t *testing.T) {
 	}
 
 	response := deployer.formatResponse(successResult)
+
 	expectedSuccess := "Applied apps/v1/Deployment: test-app in namespace test-namespace (operation: created, status: Available)"
 	if response != expectedSuccess {
 		t.Errorf("Expected success response %q, got %q", expectedSuccess, response)
@@ -407,17 +415,18 @@ func TestDeployResultErrorHandling(t *testing.T) {
 		},
 		Operation: "failed",
 		Status:    "failed",
-		Error:     fmt.Errorf("namespaces \"test-namespace\" not found"),
+		Error:     errors.New("namespaces \"test-namespace\" not found"),
 	}
 
 	response = deployer.formatResponse(failedResult)
+
 	expectedFailure := "Apply failed: namespaces \"test-namespace\" not found"
 	if response != expectedFailure {
 		t.Errorf("Expected failure response %q, got %q", expectedFailure, response)
 	}
 }
 
-// TestFormatResponseSuccess tests successful formatResponse
+// TestFormatResponseSuccess tests successful formatResponse.
 func TestFormatResponseSuccess(t *testing.T) {
 	deployer := &Deployer{
 		logger: slog.Default(),
@@ -440,13 +449,14 @@ func TestFormatResponseSuccess(t *testing.T) {
 	}
 
 	response := deployer.formatResponse(result)
+
 	expected := "Applied apps/v1/Deployment: test-app in namespace test-namespace (operation: created, status: Available)"
 	if response != expected {
 		t.Errorf("Expected response %q, got %q", expected, response)
 	}
 }
 
-// TestFormatResponseError tests error formatResponse
+// TestFormatResponseError tests error formatResponse.
 func TestFormatResponseError(t *testing.T) {
 	deployer := &Deployer{
 		logger: slog.Default(),
@@ -465,10 +475,11 @@ func TestFormatResponseError(t *testing.T) {
 		},
 		Operation: "failed",
 		Status:    "failed",
-		Error:     fmt.Errorf("service already exists"),
+		Error:     errors.New("service already exists"),
 	}
 
 	response := deployer.formatResponse(result)
+
 	expected := "Apply failed: service already exists"
 	if response != expected {
 		t.Errorf("Expected response %q, got %q", expected, response)

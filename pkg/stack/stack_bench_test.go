@@ -7,14 +7,14 @@ import (
 )
 
 func BenchmarkGenerateStackName(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		GenerateStackName("frank", "dev", "app.yaml")
 	}
 }
 
 func BenchmarkExtractAppNameFromFilename(b *testing.B) {
 	filename := "/path/to/deployment.jinja"
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		extractAppNameFromFilename(filename)
 	}
 }
@@ -27,13 +27,15 @@ func BenchmarkReadConfigForFile(b *testing.B) {
 	baseConfig := `context: test
 project_code: frank
 version: 1.0.0`
-	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o644)
+
+	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o600)
 	if err != nil {
 		b.Fatalf("Failed to create base config: %v", err)
 	}
 
 	// Create child config
 	childDir := filepath.Join(tempDir, "dev")
+
 	err = os.Mkdir(childDir, 0o755)
 	if err != nil {
 		b.Fatalf("Failed to create child directory: %v", err)
@@ -43,7 +45,8 @@ version: 1.0.0`
 namespace: dev-namespace
 app: web
 version: 2.0.0`
-	err = os.WriteFile(filepath.Join(childDir, "config.yaml"), []byte(childConfig), 0o644)
+
+	err = os.WriteFile(filepath.Join(childDir, "config.yaml"), []byte(childConfig), 0o600)
 	if err != nil {
 		b.Fatalf("Failed to create child config: %v", err)
 	}
@@ -51,7 +54,8 @@ version: 2.0.0`
 	configFile := filepath.Join(childDir, "config.yaml")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		_, err := ReadConfigForFile(configFile)
 		if err != nil {
 			b.Fatalf("ReadConfigForFile failed: %v", err)
@@ -67,13 +71,15 @@ func BenchmarkGetStackInfo(b *testing.B) {
 	baseConfig := `context: test
 project_code: frank
 version: 1.0.0`
-	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o644)
+
+	err := os.WriteFile(filepath.Join(tempDir, "config.yaml"), []byte(baseConfig), 0o600)
 	if err != nil {
 		b.Fatalf("Failed to create base config: %v", err)
 	}
 
 	// Create web config
 	webDir := filepath.Join(tempDir, "web")
+
 	err = os.Mkdir(webDir, 0o755)
 	if err != nil {
 		b.Fatalf("Failed to create web directory: %v", err)
@@ -82,7 +88,8 @@ version: 1.0.0`
 	webConfig := `project_code: frank
 app: web
 version: 2.0.0`
-	err = os.WriteFile(filepath.Join(webDir, "config.yaml"), []byte(webConfig), 0o644)
+
+	err = os.WriteFile(filepath.Join(webDir, "config.yaml"), []byte(webConfig), 0o600)
 	if err != nil {
 		b.Fatalf("Failed to create web config: %v", err)
 	}
@@ -90,7 +97,8 @@ version: 2.0.0`
 	configFile := filepath.Join(webDir, "config.yaml")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		_, err := GetStackInfo(configFile)
 		if err != nil {
 			b.Fatalf("GetStackInfo failed: %v", err)
